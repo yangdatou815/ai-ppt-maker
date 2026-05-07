@@ -1,6 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { createOutline, type OutlineResponse } from '../api/client'
+import {
+  createOutline,
+  generatePptx,
+  triggerBlobDownload,
+  type OutlineResponse,
+} from '../api/client'
+
+const props = withDefaults(
+  defineProps<{
+    /** Currently selected template name from the picker. */
+    template?: string | null
+  }>(),
+  { template: null },
+)
 
 const content = ref('')
 const language = ref<'auto' | 'zh' | 'en'>('auto')
@@ -9,6 +22,10 @@ const sourceType = ref<'text' | 'markdown'>('text')
 const loading = ref(false)
 const error = ref<string | null>(null)
 const result = ref<OutlineResponse | null>(null)
+
+const generating = ref(false)
+const genError = ref<string | null>(null)
+const genStatus = ref<string | null>(null)
 
 const startedAt = ref<number | null>(null)
 const tickMs = ref(0)
@@ -75,6 +92,29 @@ const SAMPLE = `# HotPulse 发布会
 
 function loadSample() {
   content.value = SAMPLE
+}
+
+const canGenerate = computed(
+  () => !!result.value && !!props.template && !generating.value,
+)
+
+async function generate() {
+  if (!canGenerate.value || !result.value || !props.template) return
+  generating.value = true
+  genError.value = null
+  genStatus.value = null
+  try {
+    const r = await generatePptx({
+      outline: result.value.outline,
+      template: props.template,
+    })
+    triggerBlobDownload(r.blob, r.filename)
+    genStatus.value = `已下载 ${r.filename} · 模板 ${r.template} · ${r.elapsedMs} ms`
+  } catch (e: unknown) {
+    genError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    generating.value = false
+  }
 }
 </script>
 
@@ -156,6 +196,22 @@ function loadSample() {
           <p v-if="s.speaker_notes" class="notes">备注：{{ s.speaker_notes }}</p>
         </li>
       </ol>
+
+      <footer class="result-actions">
+        <button
+          type="button"
+          class="primary"
+          :disabled="!canGenerate"
+          @click="generate"
+          :title="!props.template ? '请先在上方选择一个模板' : ''"
+        >
+          <span v-if="!generating">生成 PPT 并下载</span>
+          <span v-else>正在生成…</span>
+        </button>
+        <span v-if="!props.template" class="hint">请先选择模板</span>
+        <span v-if="genStatus" class="ok" role="status">{{ genStatus }}</span>
+        <span v-if="genError" class="err" role="alert">{{ genError }}</span>
+      </footer>
     </article>
   </section>
 </template>

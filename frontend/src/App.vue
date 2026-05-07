@@ -46,7 +46,7 @@ onMounted(async () => {
       />
     </section>
 
-    <OutlineForm class="block" />
+    <OutlineForm class="block" :template="selected" />
 
     <footer>
       <span>© ai-ppt-maker · M2 outline preview</span>

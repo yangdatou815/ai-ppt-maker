@@ -29,6 +29,7 @@ export interface OutlineDoc {
   subtitle: string | null
   language: string
   sections: OutlineSection[]
+  cover_meta?: Record<string, string>
 }
 
 export interface OutlineResponse {
@@ -76,4 +77,50 @@ export async function createOutline(args: {
     throw new Error(`POST /outline failed: ${r.status}${detail ? ' — ' + detail : ''}`)
   }
   return r.json()
+}
+
+export interface GeneratePptxResult {
+  blob: Blob
+  filename: string
+  template: string
+  elapsedMs: number
+}
+
+export async function generatePptx(args: {
+  outline: OutlineDoc
+  template: string
+}): Promise<GeneratePptxResult> {
+  const r = await fetch(`${BASE}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outline: args.outline, template: args.template }),
+  })
+  if (!r.ok) {
+    let detail = ''
+    try {
+      detail = (await r.json()).detail ?? ''
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`POST /generate failed: ${r.status}${detail ? ' — ' + detail : ''}`)
+  }
+  const blob = await r.blob()
+  const cd = r.headers.get('Content-Disposition') ?? ''
+  const m = /filename="?([^";]+)"?/.exec(cd)
+  const filename = m ? m[1] : `${args.template}.pptx`
+  const elapsed = Number(r.headers.get('X-Render-Elapsed-Ms') ?? '0') || 0
+  return { blob, filename, template: args.template, elapsedMs: elapsed }
+}
+
+/** Trigger a browser download for an in-memory blob. Pulled out for testing. */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // Revoke on next tick — Safari needs the URL to still be alive when click() runs.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }

@@ -54,17 +54,6 @@ def test_outline_falls_back_when_llm_down(client, monkeypatch):
         outline_api.reset_client_factory()
 
 
-def test_generate_stub_501(client):
-    r = client.post(
-        "/api/generate",
-        json={
-            "outline": {"title": "t", "sections": []},
-            "template": "executive-dark",
-        },
-    )
-    assert r.status_code == 501
-
-
 def test_jobs_stub_404(client):
     r = client.get("/api/jobs/nope")
     assert r.status_code == 404

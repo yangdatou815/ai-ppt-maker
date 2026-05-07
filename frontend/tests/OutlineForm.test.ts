@@ -118,4 +118,82 @@ describe('OutlineForm', () => {
     const ta = w.find('textarea').element as HTMLTextAreaElement
     expect(ta.value).toContain('HotPulse')
   })
+
+  it('hides the generate button when no template is selected', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => FAKE_OK,
+    })) as unknown as typeof fetch
+
+    const w = mount(OutlineForm, { props: { template: null } })
+    await w.find('textarea').setValue('x')
+    await w.find('button.primary').trigger('click')
+    await flushPromises()
+
+    // After result, two .primary buttons exist (submit + generate). The generate
+    // one should be disabled and the hint visible.
+    const buttons = w.findAll('.result-actions button.primary')
+    expect(buttons).toHaveLength(1)
+    expect((buttons[0].element as HTMLButtonElement).disabled).toBe(true)
+    expect(w.find('.result-actions .hint').text()).toContain('请先选择模板')
+  })
+
+  it('clicking generate POSTs /api/generate and triggers a download', async () => {
+    const fakeBlob = new Blob([new Uint8Array([0x50, 0x4b, 0x03, 0x04])], {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    })
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).endsWith('/outline')) {
+        return { ok: true, json: async () => FAKE_OK } as unknown as Response
+      }
+      // /generate
+      return {
+        ok: true,
+        blob: async () => fakeBlob,
+        headers: {
+          get: (k: string) => {
+            if (k === 'Content-Disposition') return 'attachment; filename="Demo.pptx"'
+            if (k === 'X-Render-Elapsed-Ms') return '42'
+            return null
+          },
+        },
+      } as unknown as Response
+    }) as unknown as typeof fetch
+    global.fetch = fetchMock
+
+    const createUrl = vi
+      .fn()
+      .mockReturnValue('blob:fake') as unknown as typeof URL.createObjectURL
+    const revokeUrl = vi.fn() as unknown as typeof URL.revokeObjectURL
+    // jsdom doesn't define these — assign them so component code can call them
+    URL.createObjectURL = createUrl
+    URL.revokeObjectURL = revokeUrl
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    const w = mount(OutlineForm, { props: { template: 'executive-dark' } })
+    await w.find('textarea').setValue('hello')
+    await w.find('button.primary').trigger('click')
+    await flushPromises()
+
+    const genBtn = w.find('.result-actions button.primary')
+    expect((genBtn.element as HTMLButtonElement).disabled).toBe(false)
+    await genBtn.trigger('click')
+    await flushPromises()
+
+    const calls = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls.length).toBe(2)
+    const [genUrl, genInit] = calls[1]
+    expect(String(genUrl)).toContain('/generate')
+    const body = JSON.parse((genInit as RequestInit).body as string)
+    expect(body.template).toBe('executive-dark')
+    expect(body.outline.title).toBe('Demo')
+
+    expect(createUrl).toHaveBeenCalledWith(fakeBlob)
+    expect(clickSpy).toHaveBeenCalled()
+    expect(w.find('.result-actions .ok').text()).toContain('Demo.pptx')
+
+    // revoke is queued via setTimeout(0), exercise it
+    await new Promise((r) => setTimeout(r, 0))
+    expect(revokeUrl).toHaveBeenCalled()
+  })
 })
