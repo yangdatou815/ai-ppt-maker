@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Iterable
+from collections.abc import Iterable
 
 _FORMAT = "%(asctime)s %(levelname)-7s %(name)s :: %(message)s"
 _DATEFMT = "%Y-%m-%d %H:%M:%S"

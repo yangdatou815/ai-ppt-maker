@@ -5,6 +5,7 @@ trailing commas. This module attempts progressively looser parsing strategies.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -66,15 +67,11 @@ def repair(raw: str) -> dict:
     s = raw.strip()
     candidates.append(s)
     candidates.append(_strip_fence(s))
-    try:
+    with contextlib.suppress(JsonRepairError):
         candidates.append(_extract_first_object(s))
-    except JsonRepairError:
-        pass
     candidates.append(_drop_trailing_commas(_strip_fence(s)))
-    try:
+    with contextlib.suppress(JsonRepairError):
         candidates.append(_drop_trailing_commas(_extract_first_object(s)))
-    except JsonRepairError:
-        pass
 
     last_err: Exception | None = None
     for idx, c in enumerate(candidates):

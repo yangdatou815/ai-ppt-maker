@@ -38,7 +38,7 @@ def test_outline_falls_back_when_llm_down(client, monkeypatch):
     # The LlmUnavailableError → rule_based path is exercised in tests/integration.
     # Here we just assert the route is wired.
     from app.api import outline as outline_api
-    from app.outline.llm_client import LlmUnavailableError, LlmResponse
+    from app.outline.llm_client import LlmUnavailableError
 
     class _Down:
         def chat_json(self, system, user):
