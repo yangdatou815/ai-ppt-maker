@@ -1,6 +1,16 @@
 version: '1.0'
 name: ai-ppt-maker
 displayName: ai-ppt-maker-pipeline
+# Gitee Go 2.x schema (verified 2026-05-07).
+# Notes for future edits:
+#   - displayName must be ASCII (letters/digits/dash/underscore). 中文/空格被拒。
+#   - step plugin fields go *directly* under `step:`, NOT nested under `inputs:`.
+#   - each stage needs `strategy: naturally` + `trigger: auto`.
+#   - each step needs `caches:` + `notify:` lists (empty OK) + `strategy.retry`.
+#   - `triggers.push.branches.prefix:` (prefix match, not include/exclude).
+#   - frontend `build@nodejs` step intentionally absent — Node plugin's real
+#     2.x schema not yet captured. Add once we sample one from the
+#     graphical editor.
 triggers:
   trigger: auto
   push:
