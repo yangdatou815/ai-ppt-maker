@@ -68,6 +68,12 @@ docker compose up --build
 
 提交前必须本地通过 `bash scripts/dod.sh` —— 与 CI 同源命令。CI 还会跑 `python scripts/build_scripts.py --check` 校验 `install.bat` / `scripts/deploy.bat` / `scripts/cleanup.bat` 与模板源同步。
 
+## 持续集成
+
+> **当前状态**：Gitee Go 流水线暂停。手写在 `.workflow/*.yml` 的三条流水线（branch / pr / master）符合 Gitee Go 1.x 文档的 schema，但 2026 年改版后控制台报「流水线配置有误」。已把目录改名为 `.workflow.disabled/` 防止持续噪音；DoD 命令依然完整、本地可跑。
+>
+> 重启路径见 [`.workflow.disabled/README.md`](.workflow.disabled/README.md)：到 Gitee Go 网页用「图形化编辑」配通后再同步回仓库。
+
 ## 排错：打开 DEBUG 日志
 
 默认 `LOG_LEVEL=INFO`。需要定位问题时不必整体调高，可只对单一子系统开 DEBUG：

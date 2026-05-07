@@ -10,6 +10,17 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
+### Changed
+- **Gitee Go pipelines temporarily disabled.** Renamed `.workflow/` →
+  `.workflow.disabled/`. The hand-written branch / pr / master YAMLs match
+  the Gitee Go 1.x reference but the 2026 console rejects them with
+  「流水线配置有误」 and several of Gitee's official YAML-schema docs now
+  return 404, so we can't fix in-place. Files kept for reference + diff
+  basis once the pipelines are reconfigured via Gitee Go's graphical
+  editor; restart steps documented in `.workflow.disabled/README.md`. DoD
+  commands (`bash scripts/dod.sh`, `python scripts/build_scripts.py
+  --check`) remain unchanged and still pass locally.
+
 ### Added
 - **M2-2 — outline → editable .pptx download is live.** End-to-end flow now
   works in the browser: pick template → paste content → 「生成大纲」 →
