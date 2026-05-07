@@ -11,6 +11,22 @@ Categories used (in order, omit empty ones):
 ## [Unreleased]
 
 ### Added
+- Frontend M2 outline UI: textarea + source-type/language selectors + live
+  elapsed timer, posts to `/api/outline` and renders the resulting outline
+  with section numbering, emphasis bullets, and a fallback / LLM badge so
+  the operator can tell instantly which path produced the result.
+  - `frontend/src/components/OutlineForm.vue`: char-count guard against the
+    20 000-char limit; "载入示例" preset; tick-driven elapsed display while
+    awaiting the response.
+  - `frontend/src/api/client.ts`: typed `OutlineResponse` / `OutlineDoc` /
+    `OutlineSection` / `Bullet` + `createOutline()` wrapper that surfaces
+    backend `detail` text on `4xx`/`5xx`.
+  - `frontend/src/App.vue`: rebuilt to compose `TemplatePicker` and
+    `OutlineForm`; on mount calls `/api/healthz` and shows backend version
+    + active model.
+  - 6 new vitest cases in `frontend/tests/OutlineForm.test.ts` (empty-state
+    submit guard, oversize guard, success path, fallback badge, error path,
+    sample loader).
 - Centralised logging setup ([`backend/app/logging_setup.py`](backend/app/logging_setup.py))
   with per-module level overrides — the operator-facing log switch.
   - Root level via `LOG_LEVEL` env (`DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL`).

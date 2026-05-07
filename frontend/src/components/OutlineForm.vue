@@ -1,0 +1,161 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { createOutline, type OutlineResponse } from '../api/client'
+
+const content = ref('')
+const language = ref<'auto' | 'zh' | 'en'>('auto')
+const sourceType = ref<'text' | 'markdown'>('text')
+
+const loading = ref(false)
+const error = ref<string | null>(null)
+const result = ref<OutlineResponse | null>(null)
+
+const startedAt = ref<number | null>(null)
+const tickMs = ref(0)
+let tickHandle: ReturnType<typeof setInterval> | null = null
+
+const charCount = computed(() => content.value.length)
+const overLimit = computed(() => charCount.value > 20_000)
+const canSubmit = computed(
+  () => !loading.value && content.value.trim().length > 0 && !overLimit.value,
+)
+
+const elapsedDisplay = computed(() => {
+  if (loading.value && startedAt.value !== null) {
+    return `${(tickMs.value / 1000).toFixed(1)} s`
+  }
+  if (result.value) {
+    return `${(result.value.elapsed_ms / 1000).toFixed(2)} s`
+  }
+  return ''
+})
+
+function startTicker() {
+  startedAt.value = performance.now()
+  tickMs.value = 0
+  tickHandle = setInterval(() => {
+    if (startedAt.value !== null) tickMs.value = performance.now() - startedAt.value
+  }, 100)
+}
+
+function stopTicker() {
+  if (tickHandle !== null) {
+    clearInterval(tickHandle)
+    tickHandle = null
+  }
+  startedAt.value = null
+}
+
+async function submit() {
+  if (!canSubmit.value) return
+  loading.value = true
+  error.value = null
+  result.value = null
+  startTicker()
+  try {
+    const r = await createOutline({
+      content: content.value,
+      source_type: sourceType.value,
+      language: language.value,
+    })
+    result.value = r
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    loading.value = false
+    stopTicker()
+  }
+}
+
+const SAMPLE = `# HotPulse 发布会
+
+我们的产品 HotPulse 是一个面向中小团队的实时业务监控平台。它支持多数据源接入、自定义看板、智能告警和移动端推送。
+
+本次发布会将面向投资人和早期客户，介绍产品定位、核心能力、技术架构和未来路线图。`
+
+function loadSample() {
+  content.value = SAMPLE
+}
+</script>
+
+<template>
+  <section class="outline-form">
+    <div class="form-header">
+      <h2>大纲生成</h2>
+      <button type="button" class="link" @click="loadSample" :disabled="loading">
+        载入示例
+      </button>
+    </div>
+
+    <label class="field">
+      <span class="label-text">内容（粘贴文字 / Markdown，最长 20 000 字）</span>
+      <textarea
+        v-model="content"
+        rows="10"
+        :disabled="loading"
+        placeholder="把要讲的内容粘进来，可以是一段段落、Markdown 标题，或带列表的笔记…"
+      />
+      <span class="char-count" :class="{ over: overLimit }">
+        {{ charCount.toLocaleString() }} / 20,000
+      </span>
+    </label>
+
+    <div class="row">
+      <label class="field-inline">
+        <span>来源</span>
+        <select v-model="sourceType" :disabled="loading">
+          <option value="text">纯文本</option>
+          <option value="markdown">Markdown</option>
+        </select>
+      </label>
+
+      <label class="field-inline">
+        <span>语言</span>
+        <select v-model="language" :disabled="loading">
+          <option value="auto">自动检测</option>
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+
+      <button class="primary" :disabled="!canSubmit" @click="submit">
+        <span v-if="!loading">生成大纲</span>
+        <span v-else>生成中… {{ elapsedDisplay }}</span>
+      </button>
+    </div>
+
+    <div v-if="error" class="err" role="alert">{{ error }}</div>
+
+    <article v-if="result" class="result">
+      <header class="result-meta">
+        <span class="badge" :class="{ fallback: result.used_fallback }">
+          {{ result.used_fallback ? 'Fallback (LLM 不可用)' : 'LLM 生成' }}
+        </span>
+        <span v-if="result.used_model" class="meta">model: {{ result.used_model }}</span>
+        <span class="meta">耗时: {{ elapsedDisplay }}</span>
+        <span class="meta">语言: {{ result.outline.language }}</span>
+        <span class="meta">{{ result.outline.sections.length }} 段</span>
+      </header>
+
+      <h3 class="title">{{ result.outline.title }}</h3>
+      <p v-if="result.outline.subtitle" class="subtitle">{{ result.outline.subtitle }}</p>
+
+      <ol class="sections">
+        <li v-for="(s, i) in result.outline.sections" :key="i" class="section">
+          <h4>{{ s.heading }}</h4>
+          <ul v-if="s.bullets.length" class="bullets">
+            <li
+              v-for="(b, j) in s.bullets"
+              :key="j"
+              :class="{ emphasis: b.emphasis }"
+            >
+              {{ b.text }}
+              <em v-if="b.note" class="bullet-note">— {{ b.note }}</em>
+            </li>
+          </ul>
+          <p v-if="s.speaker_notes" class="notes">备注：{{ s.speaker_notes }}</p>
+        </li>
+      </ol>
+    </article>
+  </section>
+</template>
