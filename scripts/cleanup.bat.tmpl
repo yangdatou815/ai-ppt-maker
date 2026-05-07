@@ -1,0 +1,224 @@
+@echo off
+REM ============================================================
+REM scripts/cleanup.bat - Windows 一键卸载脚本
+REM
+REM !!! 本文件由 scripts/build_scripts.py 自动生成，请勿手动编辑 !!!
+REM !!! 修改源：scripts/cleanup.bat.tmpl + scripts/_common.bat   !!!
+REM
+REM 默认清理：
+REM   1. stop.bat
+REM   2. backend\.venv 与 frontend\node_modules / dist
+REM   3. 运行/构建产物（output, .pytest_cache, .run, *.log, __pycache__, *.egg-info）
+REM
+REM 可选：
+REM   /with-model    额外删除 Ollama 模型
+REM   /with-ollama   额外卸载 Ollama 二进制
+REM   /purge         额外删除整个项目目录（不可逆）
+REM
+REM 安全：
+REM   /dry-run       仅打印
+REM   /yes           非交互
+REM
+REM 等价环境变量：APM_CLEAN_MODEL=1 / APM_CLEAN_OLLAMA=1 / APM_PURGE=1 / APM_CLEAN_YES=1 / APM_DRY_RUN=1
+REM ============================================================
+
+setlocal enabledelayedexpansion
+chcp 65001 > nul
+title ai-ppt-maker - 一键卸载
+
+set "_SCRIPT_DIR=%~dp0"
+if "%_SCRIPT_DIR:~-1%"=="\" set "_SCRIPT_DIR=%_SCRIPT_DIR:~0,-1%"
+if exist "%_SCRIPT_DIR%\backend\pyproject.toml" (
+    set "PROJ_ROOT=%_SCRIPT_DIR%"
+) else if exist "%_SCRIPT_DIR%\..\backend\pyproject.toml" (
+    for %%I in ("%_SCRIPT_DIR%\..") do set "PROJ_ROOT=%%~fI"
+) else (
+    echo [FATAL] 未找到 backend\pyproject.toml，请在项目目录下运行
+    pause & exit /b 3
+)
+
+set "DRY_RUN=%APM_DRY_RUN%"
+set "ASSUME_YES=%APM_CLEAN_YES%"
+set "WITH_MODEL=%APM_CLEAN_MODEL%"
+set "WITH_OLLAMA=%APM_CLEAN_OLLAMA%"
+set "PURGE=%APM_PURGE%"
+if "%DRY_RUN%"=="" set "DRY_RUN=0"
+if "%ASSUME_YES%"=="" set "ASSUME_YES=0"
+if "%WITH_MODEL%"=="" set "WITH_MODEL=0"
+if "%WITH_OLLAMA%"=="" set "WITH_OLLAMA=0"
+if "%PURGE%"=="" set "PURGE=0"
+
+:parse_args
+if "%~1"=="" goto :args_done
+if /i "%~1"=="/dry-run" set "DRY_RUN=1" & shift & goto :parse_args
+if /i "%~1"=="--dry-run" set "DRY_RUN=1" & shift & goto :parse_args
+if /i "%~1"=="/yes" set "ASSUME_YES=1" & shift & goto :parse_args
+if /i "%~1"=="-y" set "ASSUME_YES=1" & shift & goto :parse_args
+if /i "%~1"=="--yes" set "ASSUME_YES=1" & shift & goto :parse_args
+if /i "%~1"=="/with-model" set "WITH_MODEL=1" & shift & goto :parse_args
+if /i "%~1"=="--with-model" set "WITH_MODEL=1" & shift & goto :parse_args
+if /i "%~1"=="/with-ollama" set "WITH_OLLAMA=1" & shift & goto :parse_args
+if /i "%~1"=="--with-ollama" set "WITH_OLLAMA=1" & shift & goto :parse_args
+if /i "%~1"=="/purge" set "PURGE=1" & shift & goto :parse_args
+if /i "%~1"=="--purge" set "PURGE=1" & shift & goto :parse_args
+if /i "%~1"=="/h" goto :show_help
+if /i "%~1"=="/?" goto :show_help
+if /i "%~1"=="-h" goto :show_help
+if /i "%~1"=="--help" goto :show_help
+echo 未知参数: %~1
+goto :show_help
+
+:show_help
+echo cleanup.bat [/dry-run] [/yes] [/with-model] [/with-ollama] [/purge]
+endlocal & exit /b 0
+
+:args_done
+
+if "%PURGE%"=="1" (
+    if /i "%PROJ_ROOT%"=="C:\" (
+        echo [FATAL] 拒绝在 C:\ 上 purge
+        endlocal & exit /b 3
+    )
+    if /i "%PROJ_ROOT%"=="%USERPROFILE%" (
+        echo [FATAL] 拒绝在用户主目录上 purge
+        endlocal & exit /b 3
+    )
+    findstr /b /c:"name = \"ai-ppt-maker-backend\"" "%PROJ_ROOT%\backend\pyproject.toml" >nul 2>nul
+    if errorlevel 1 (
+        echo [FATAL] %PROJ_ROOT% 不是 ai-ppt-maker，拒绝 /purge
+        endlocal & exit /b 3
+    )
+)
+
+call :ui_banner "ai-ppt-maker - 一键卸载" "项目: %PROJ_ROOT%"
+
+echo   backend\.venv      : 检查中...
+if exist "%PROJ_ROOT%\backend\.venv" (echo                       存在) else (echo                       不存在)
+echo   frontend\node_modules : 检查中...
+if exist "%PROJ_ROOT%\frontend\node_modules" (echo                          存在) else (echo                          不存在)
+echo   选项: with-model=%WITH_MODEL% with-ollama=%WITH_OLLAMA% purge=%PURGE%
+if "%DRY_RUN%"=="1" echo   模式: DRY-RUN
+echo.
+
+if not "%ASSUME_YES%"=="1" if not "%DRY_RUN%"=="1" (
+    set /p "ANS=确认执行清理? [y/N] "
+    if /i not "!ANS!"=="y" if /i not "!ANS!"=="yes" (
+        echo 已取消
+        endlocal & exit /b 0
+    )
+)
+
+set "STEPS=4"
+if "%WITH_MODEL%"=="1" set /a STEPS=STEPS+1
+if "%WITH_OLLAMA%"=="1" set /a STEPS=STEPS+1
+if "%PURGE%"=="1" set /a STEPS=STEPS+1
+call :ui_init %STEPS%
+
+REM --- 1. stop.bat ---
+call :ui_step "停止运行中的服务"
+if exist "%_SCRIPT_DIR%\stop.bat" (
+    if "%DRY_RUN%"=="1" (call :ui_info "[DRY] call stop.bat") else (call "%_SCRIPT_DIR%\stop.bat" >nul 2>nul)
+) else (
+    call :ui_info "stop.bat 不存在，跳过"
+)
+call :ui_ok
+
+REM --- 2. backend venv ---
+call :ui_step "删除 backend\.venv"
+call :_clean_dir "backend\.venv"
+call :ui_ok
+
+REM --- 3. frontend node_modules + dist ---
+call :ui_step "删除 frontend\node_modules 与 frontend\dist"
+call :_clean_dir "frontend\node_modules"
+call :_clean_dir "frontend\dist"
+call :ui_ok
+
+REM --- 4. 运行与构建产物 ---
+call :ui_step "删除运行/构建产物"
+call :_clean_dir ".run"
+call :_clean_dir ".pytest_cache"
+call :_clean_dir "htmlcov"
+call :_clean_file ".coverage"
+call :_clean_file "coverage.xml"
+call :_clean_file "install.log"
+call :_clean_file "deploy.log"
+if "%DRY_RUN%"=="1" (
+    call :ui_info "[DRY] for /d /r ... __pycache__ / *.egg-info"
+) else (
+    for /d /r "%PROJ_ROOT%" %%D in (__pycache__) do if exist "%%D" rmdir /s /q "%%D" 2>nul
+    for /d /r "%PROJ_ROOT%" %%D in (*.egg-info) do if exist "%%D" rmdir /s /q "%%D" 2>nul
+    call :ui_info "已清理 __pycache__ / *.egg-info"
+)
+call :ui_ok
+
+REM --- 5. Ollama 模型 ---
+if "%WITH_MODEL%"=="1" (
+    call :ui_step "删除 Ollama 模型"
+    if not defined APM_LLM_MODEL set "APM_LLM_MODEL=qwen2.5:7b-instruct"
+    where ollama >nul 2>nul
+    if errorlevel 1 (
+        call :ui_info "ollama 未安装，跳过"
+    ) else (
+        if "%DRY_RUN%"=="1" (call :ui_info "[DRY] ollama rm !APM_LLM_MODEL!") else (ollama rm "!APM_LLM_MODEL!" 2>nul & call :ui_info "已移除模型 !APM_LLM_MODEL!")
+    )
+    call :ui_ok
+)
+
+REM --- 6. Ollama 二进制 ---
+if "%WITH_OLLAMA%"=="1" (
+    call :ui_step "卸载 Ollama 二进制"
+    where winget >nul 2>nul
+    if errorlevel 1 (
+        call :ui_warn "未找到 winget，请手动卸载"
+    ) else (
+        if "%DRY_RUN%"=="1" (call :ui_info "[DRY] winget uninstall Ollama.Ollama") else (winget uninstall -e --id Ollama.Ollama --accept-source-agreements --silent 2>nul & call :ui_info "已请求卸载 Ollama")
+    )
+    if exist "%USERPROFILE%\.ollama" (
+        if "%DRY_RUN%"=="1" (call :ui_info "[DRY] rmdir /s /q %USERPROFILE%\.ollama") else (rmdir /s /q "%USERPROFILE%\.ollama" 2>nul & call :ui_info "已删除 %USERPROFILE%\.ollama")
+    )
+    call :ui_ok
+)
+
+REM --- 7. Purge ---
+if "%PURGE%"=="1" (
+    call :ui_step "删除整个项目目录"
+    call :ui_info "目标: %PROJ_ROOT%"
+    if "%DRY_RUN%"=="1" (
+        call :ui_info "[DRY] cd /d %PROJ_ROOT%\.. ^&^& rmdir /s /q %PROJ_ROOT%"
+    ) else (
+        cd /d "%PROJ_ROOT%\.."
+        rmdir /s /q "%PROJ_ROOT%" 2>nul
+        call :ui_info "已删除 %PROJ_ROOT%"
+    )
+    call :ui_ok
+)
+
+call :ui_summary
+echo.
+if "%DRY_RUN%"=="1" (
+    echo DRY-RUN 完成；如需真正执行请去掉 /dry-run。
+) else (
+    echo 卸载完成。如需重新安装：scripts\deploy.bat
+)
+endlocal
+exit /b 0
+
+:_clean_dir
+if exist "%PROJ_ROOT%\%~1" (
+    if "%DRY_RUN%"=="1" (call :ui_info "[DRY] rmdir /s /q %~1") else (rmdir /s /q "%PROJ_ROOT%\%~1" 2>nul & call :ui_info "已移除 %~1")
+)
+exit /b 0
+
+:_clean_file
+if exist "%PROJ_ROOT%\%~1" (
+    if "%DRY_RUN%"=="1" (call :ui_info "[DRY] del %~1") else (del /f /q "%PROJ_ROOT%\%~1" 2>nul & call :ui_info "已移除 %~1")
+)
+exit /b 0
+
+REM ============================================================
+REM  >>>>>>>>>>>>>>>>  _common.bat 内容内联区  <<<<<<<<<<<<<<<<
+REM ============================================================
+
+:{{COMMON_MARK}}
+{{COMMON_BODY}}

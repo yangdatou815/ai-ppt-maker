@@ -1,0 +1,21 @@
+layouts:
+  cover:           { index: 0, placeholders: { title: 0, subtitle: 1, footer: 10 } }
+  toc:             { index: 1, placeholders: { title: 0, body: 1 } }
+  section-divider: { index: 2, placeholders: { number: 10, title: 0 } }
+  content-bullets: { index: 3, placeholders: { title: 0, body: 1 } }
+  content-image:   { index: 4, placeholders: { title: 0, body: 1, image: 13 } }
+  content-table:   { index: 5, placeholders: { title: 0, body: 1, caption: 14 } }
+  closing:         { index: 6, placeholders: { title: 0, subtitle: 1 } }
+
+theme:
+  primary:    "#FAFAF7"
+  primary-2:  "#FFFFFF"
+  text:       "#1A1A1A"
+  text-mute:  "#6B6B6B"
+  accent:     "#E2532E"
+  hairline:   "#E5E2DA"
+
+fonts:
+  heading: "Inter"
+  body:    "Inter"
+  mono:    "JetBrains Mono"

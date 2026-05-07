@@ -1,0 +1,25 @@
+# layout-mapping for executive-dark
+# 占位符 index 在 master.pptx 真正落地后（M2/M3）需要复核；
+# 当前先按 docs/design-refs/README.md 给出的"约定"骨架填入，避免 master 缺失阻塞 API。
+
+layouts:
+  cover:           { index: 0, placeholders: { title: 0, subtitle: 1, footer: 10 } }
+  toc:             { index: 1, placeholders: { title: 0, body: 1 } }
+  section-divider: { index: 2, placeholders: { number: 10, title: 0 } }
+  content-bullets: { index: 3, placeholders: { title: 0, body: 1 } }
+  content-image:   { index: 4, placeholders: { title: 0, body: 1, image: 13 } }
+  content-table:   { index: 5, placeholders: { title: 0, body: 1, caption: 14 } }
+  closing:         { index: 6, placeholders: { title: 0, subtitle: 1 } }
+
+theme:
+  primary:    "#0B1F3A"
+  primary-2:  "#050B14"
+  accent:     "#C9A24E"
+  neutral:    "#F4F1EA"
+  text:       "#F4F1EA"
+  text-mute:  "#A3A6AD"
+
+fonts:
+  heading: "Source Han Serif CN"
+  body:    "Source Han Sans CN"
+  mono:    "JetBrains Mono"

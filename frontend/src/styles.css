@@ -1,0 +1,119 @@
+:root {
+  --bg: #fafaf7;
+  --text: #1a1a1a;
+  --text-mute: #6b6b6b;
+  --hairline: #e5e2da;
+  --accent: #e2532e;
+  --radius: 10px;
+  font-family: 'Inter', 'Source Han Sans CN', system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+
+h1 {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+
+h1::after {
+  content: '';
+  display: block;
+  width: 80px;
+  height: 3px;
+  background: var(--accent);
+  margin-top: 12px;
+}
+
+.lead {
+  color: var(--text-mute);
+  margin: 16px 0 48px;
+  font-size: 16px;
+  max-width: 720px;
+}
+
+.template-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.tcard {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 24px;
+  cursor: pointer;
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tcard:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.04);
+}
+
+.tcard.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(226, 83, 46, 0.15);
+}
+
+.tcard h3 { margin: 0; font-size: 20px; font-weight: 600; }
+.tcard p  { margin: 0; color: var(--text-mute); font-size: 14px; line-height: 1.5; }
+
+.swatches {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: #f4f1ea;
+  color: var(--text-mute);
+}
+
+.empty, .err {
+  padding: 32px;
+  border: 1px dashed var(--hairline);
+  border-radius: var(--radius);
+  color: var(--text-mute);
+}
+.err { color: #b14b4b; border-color: #f1c8c8; }
+
+footer {
+  margin-top: 64px;
+  color: var(--text-mute);
+  font-size: 13px;
+}

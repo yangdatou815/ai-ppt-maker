@@ -1,0 +1,234 @@
+@echo off
+REM ============================================================
+REM install.bat - 零基础一键安装入口（Windows 10/11）
+REM
+REM !!! 本文件由 scripts/build_scripts.py 自动生成，请勿手动编辑 !!!
+REM !!! 修改源：scripts/install.bat.tmpl + scripts/_common.bat  !!!
+REM
+REM 流程：winget 装 Python/Node/Git/Ollama → clone/定位源码 → 调 deploy.bat
+REM 所有外部命令的完整输出会追加到 install.log；出错请把 install.log 发给维护者。
+REM ============================================================
+
+setlocal enabledelayedexpansion
+chcp 65001 > nul
+title ai-ppt-maker - 一键安装
+
+set LOG=%~dp0install.log
+
+REM --- 初始化日志 ---
+echo ============================================================ > "%LOG%"
+echo install.bat log - %DATE% %TIME% >> "%LOG%"
+echo CWD: %CD% >> "%LOG%"
+echo SCRIPT: %~f0 >> "%LOG%"
+echo ============================================================ >> "%LOG%"
+ver >> "%LOG%" 2>&1
+echo. >> "%LOG%"
+
+call :ui_banner "ai-ppt-maker - 一键安装" "Python + Node + Ollama 模型；首次预计 20-40 分钟"
+call :ui_init 6
+
+REM --- 0. winget ---
+call :ui_step "检查 winget"
+set "WINGET_EXE="
+if exist "%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe" set "WINGET_EXE=%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe"
+if not defined WINGET_EXE (
+    for /f "delims=" %%W in ('where winget 2^>nul') do if not defined WINGET_EXE set "WINGET_EXE=%%W"
+)
+set HAVE_WINGET=0
+if defined WINGET_EXE set HAVE_WINGET=1
+if %HAVE_WINGET%==0 (
+    call :ui_warn "未找到 winget。请到 Microsoft Store 搜 '应用安装程序' 安装"
+    call :ui_ok_warn "winget 缺失（继续，但需要手动安装依赖）"
+) else (
+    "%WINGET_EXE%" --version >> "%LOG%" 2>&1
+    call :ui_ok "winget OK"
+)
+
+REM --- 1. Python ---
+call :ui_step "检查 Python"
+call :find_python
+if not defined PY_EXE (
+    if %HAVE_WINGET%==1 (
+        call :ui_info "winget install Python.Python.3.11（若弹出 UAC 请允许）..."
+        "%WINGET_EXE%" install -e --id Python.Python.3.11 --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            call :ui_fail "winget 安装 Python 失败，详见 %LOG%"
+            call :ui_summary
+            pause & exit /b 1
+        )
+        call :refresh_path
+        call :find_python
+        if not defined PY_EXE (
+            call :ui_fail "Python 已安装但本会话无法定位；请关闭重开 cmd"
+            call :ui_summary
+            pause & exit /b 1
+        )
+    ) else (
+        call :ui_fail "未找到 Python 且 winget 不可用"
+        call :ui_summary
+        pause & exit /b 1
+    )
+)
+for /f "tokens=2" %%v in ('"!PY_EXE!" --version 2^>^&1') do set PYVER=%%v
+call :ui_ok "Python !PYVER!"
+
+REM --- 2. Node.js ---
+call :ui_step "检查 Node.js (>=18)"
+where node >nul 2>nul
+if errorlevel 1 (
+    if %HAVE_WINGET%==1 (
+        call :ui_info "winget install OpenJS.NodeJS.LTS ..."
+        "%WINGET_EXE%" install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            call :ui_fail "winget 安装 Node.js 失败，详见 %LOG%"
+            call :ui_summary
+            pause & exit /b 1
+        )
+        call :refresh_path
+        where node >nul 2>nul
+        if errorlevel 1 (
+            call :ui_fail "Node.js 已安装但 PATH 未生效；请关闭重开 cmd"
+            call :ui_summary
+            pause & exit /b 1
+        )
+    ) else (
+        call :ui_fail "未找到 Node.js 且 winget 不可用，请从 https://nodejs.org 安装"
+        call :ui_summary
+        pause & exit /b 1
+    )
+)
+for /f "delims=" %%v in ('node --version 2^>^&1') do set NODEVER=%%v
+call :ui_ok "Node !NODEVER!"
+
+REM --- 3. Git ---
+call :ui_step "检查 Git"
+where git >nul 2>nul
+if errorlevel 1 (
+    if %HAVE_WINGET%==1 (
+        call :ui_info "winget install Git.Git ..."
+        "%WINGET_EXE%" install -e --id Git.Git --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            call :ui_ok_warn "winget 安装 Git 失败（如源码已在本地可忽略）"
+        ) else (
+            call :refresh_path
+            where git >nul 2>nul
+            if errorlevel 1 (
+                call :ui_ok_warn "Git 已安装但当前窗口 PATH 未生效"
+            ) else (
+                call :ui_ok
+            )
+        )
+    ) else (
+        call :ui_ok_warn "未找到 Git 且 winget 不可用，将跳过自动 clone"
+    )
+) else (
+    git --version >> "%LOG%" 2>&1
+    call :ui_ok
+)
+
+REM --- 4. Ollama ---
+call :ui_step "检查 Ollama"
+where ollama >nul 2>nul
+if errorlevel 1 (
+    if %HAVE_WINGET%==1 (
+        call :ui_info "winget install Ollama.Ollama ..."
+        "%WINGET_EXE%" install -e --id Ollama.Ollama --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            call :ui_ok_warn "winget 安装 Ollama 失败（M2 后才需要 LLM）"
+        ) else (
+            call :refresh_path
+            where ollama >nul 2>nul
+            if errorlevel 1 (
+                call :ui_ok_warn "Ollama 已安装但 PATH 未生效"
+            ) else (
+                call :ui_ok
+            )
+        )
+    ) else (
+        call :ui_ok_warn "未找到 Ollama 且 winget 不可用"
+    )
+) else (
+    ollama --version >> "%LOG%" 2>&1
+    call :ui_ok
+)
+
+REM --- 5. 获取/定位源码 ---
+call :ui_step "准备项目源码"
+if exist "%~dp0backend\pyproject.toml" (
+    set PROJ_DIR=%~dp0
+    if "!PROJ_DIR:~-1!"=="\" set PROJ_DIR=!PROJ_DIR:~0,-1!
+    call :ui_info "当前目录已是项目: !PROJ_DIR!"
+) else (
+    if defined APM_INSTALL_DIR (
+        set PROJ_DIR=!APM_INSTALL_DIR!
+    ) else (
+        set PROJ_DIR=%USERPROFILE%\ai-ppt-maker
+    )
+    call :ui_info "安装目录: !PROJ_DIR!  (可用 APM_INSTALL_DIR 覆盖)"
+
+    if exist "!PROJ_DIR!\backend\pyproject.toml" (
+        call :ui_info "目录已有项目，执行 git pull ..."
+        pushd "!PROJ_DIR!"
+        git pull >> "%LOG%" 2>&1
+        popd
+    ) else (
+        where git >nul 2>nul
+        if errorlevel 1 (
+            call :ui_fail "没有 git 且目标目录无源码，无法继续"
+            call :ui_summary
+            pause & exit /b 1
+        )
+        call :ui_info "git clone 到 !PROJ_DIR! ..."
+        for %%D in ("!PROJ_DIR!") do if not exist "%%~dpD" md "%%~dpD"
+        if not defined APM_REPO_URL set "APM_REPO_URL=https://example.com/REPLACE_ME/ai-ppt-maker.git"
+        git clone "!APM_REPO_URL!" "!PROJ_DIR!" >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            call :ui_fail "git clone 失败，详见 %LOG%（请设置 APM_REPO_URL 指向你的远端仓库）"
+            call :ui_summary
+            pause & exit /b 1
+        )
+    )
+)
+call :ui_ok
+
+REM --- 6. 调用 deploy.bat ---
+call :ui_step "部署 venv + 依赖 + 前端 + 拉模型"
+cd /d "!PROJ_DIR!"
+if not exist "scripts\deploy.bat" (
+    call :ui_fail "找不到 scripts\deploy.bat，项目结构异常"
+    call :ui_summary
+    pause & exit /b 1
+)
+call "scripts\deploy.bat"
+if errorlevel 1 (
+    call :ui_fail "deploy.bat 执行失败，详见屏幕与 %LOG%"
+    call :ui_summary
+    pause & exit /b 1
+)
+call :ui_ok "deploy.bat 完成"
+
+call :ui_summary
+
+echo.
+echo 项目位置: !PROJ_DIR!
+echo 日常启动: 双击 !PROJ_DIR!\scripts\start.bat
+echo 安装日志: %LOG%
+echo.
+
+if not defined APM_AUTO_START set APM_AUTO_START=1
+if "!APM_AUTO_START!"=="1" (
+    echo [i] 自动启动中...（设环境变量 APM_AUTO_START=0 可禁用）
+    start "" "!PROJ_DIR!\scripts\start.bat"
+) else (
+    echo [i] 已跳过自动启动 (APM_AUTO_START=0)
+)
+pause
+endlocal
+exit /b 0
+
+REM ============================================================
+REM  >>>>>>>>>>>>>>>>  _common.bat 内容内联区  <<<<<<<<<<<<<<<<
+REM ============================================================
+
+:{{COMMON_MARK}}
+{{COMMON_BODY}}

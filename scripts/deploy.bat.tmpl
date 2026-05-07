@@ -1,0 +1,239 @@
+@echo off
+REM ============================================================
+REM scripts/deploy.bat - Windows 首次部署脚本
+REM
+REM !!! 本文件由 scripts/build_scripts.py 自动生成，请勿手动编辑 !!!
+REM !!! 修改源：scripts/deploy.bat.tmpl + scripts/_common.bat   !!!
+REM
+REM 流程：
+REM   1. 后端 venv (backend/.venv) + pip install -e ".[dev]"
+REM   2. 前端 npm install + npm run build → frontend/dist
+REM   3. Ollama 检查 + ollama pull <model>
+REM
+REM 日志：
+REM   - install.bat 调用时继承 %LOG%
+REM   - 独立运行时写到 <项目根>\deploy.log
+REM ============================================================
+
+setlocal enabledelayedexpansion
+chcp 65001 > nul
+
+set "_SCRIPT_DIR=%~dp0"
+if "%_SCRIPT_DIR:~-1%"=="\" set "_SCRIPT_DIR=%_SCRIPT_DIR:~0,-1%"
+
+if exist "%_SCRIPT_DIR%\backend\pyproject.toml" (
+    set "PROJ_ROOT=%_SCRIPT_DIR%"
+    goto :have_proj_root
+)
+if exist "%_SCRIPT_DIR%\..\backend\pyproject.toml" (
+    for %%I in ("%_SCRIPT_DIR%\..") do set "PROJ_ROOT=%%~fI"
+    goto :have_proj_root
+)
+
+echo [FATAL] 未找到 backend\pyproject.toml，无法定位项目根
+pause & exit /b 1
+
+:have_proj_root
+cd /d "%PROJ_ROOT%"
+
+if "%LOG%"=="" (
+    set "LOG=%PROJ_ROOT%\deploy.log"
+    echo ============================================================ > "!LOG!"
+    echo deploy.bat log - %DATE% %TIME% >> "!LOG!"
+    echo ============================================================ >> "!LOG!"
+    set OWN_LOG=1
+) else (
+    echo. >> "%LOG%"
+    echo ============================================================ >> "%LOG%"
+    echo deploy.bat invoked from install.bat - %DATE% %TIME% >> "%LOG%"
+    echo ============================================================ >> "%LOG%"
+    set OWN_LOG=0
+)
+
+call :ui_banner "ai-ppt-maker 首次部署 (Windows)" "venv + pip + npm + Ollama 模型"
+call :ui_init 5
+
+set "WINGET_EXE="
+if exist "%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe" set "WINGET_EXE=%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe"
+if not defined WINGET_EXE (
+    for /f "delims=" %%W in ('where winget 2^>nul') do if not defined WINGET_EXE set "WINGET_EXE=%%W"
+)
+
+REM --- 1. Python ---
+call :ui_step "检查 Python (>=3.11)"
+call :find_python
+if not defined PY_EXE (
+    if defined WINGET_EXE (
+        call :ui_info "winget install Python.Python.3.11..."
+        "!WINGET_EXE!" install -e --id Python.Python.3.11 --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+        call :refresh_path
+        call :find_python
+    )
+)
+if not defined PY_EXE (
+    call :ui_fail "未找到 Python (3.11+)"
+    call :ui_summary
+    pause & exit /b 1
+)
+set "_PYVER_FILE=%TEMP%\_apm_pyver_%RANDOM%.txt"
+"!PY_EXE!" --version > "!_PYVER_FILE!" 2>&1
+set "_PYLINE="
+if exist "!_PYVER_FILE!" (
+    set /p _PYLINE=<"!_PYVER_FILE!"
+    del "!_PYVER_FILE!" >nul 2>nul
+)
+set "PYVER="
+for /f "tokens=2" %%v in ("!_PYLINE!") do set "PYVER=%%v"
+for /f "tokens=1,2 delims=." %%a in ("!PYVER!") do (
+    set PYMAJ=%%a
+    set PYMIN=%%b
+)
+if !PYMAJ! LSS 3 (
+    call :ui_fail "Python 版本过低，需要 3.11+，当前 !PYVER!"
+    call :ui_summary
+    pause & exit /b 1
+)
+if !PYMAJ! EQU 3 if !PYMIN! LSS 11 (
+    call :ui_fail "Python 版本过低，需要 3.11+，当前 !PYVER!"
+    call :ui_summary
+    pause & exit /b 1
+)
+call :ui_ok "Python !PYVER!"
+
+REM --- 2. backend venv + 依赖 ---
+call :ui_step "后端 venv + pip install"
+set "VENV_DIR=%PROJ_ROOT%\backend\.venv"
+set "VENV_BROKEN=0"
+if exist "%VENV_DIR%\Scripts\python.exe" (
+    "%VENV_DIR%\Scripts\python.exe" -c "import pip" >> "%LOG%" 2>&1
+    if errorlevel 1 set "VENV_BROKEN=1"
+)
+if "!VENV_BROKEN!"=="1" (
+    call :ui_info "检测到损坏的 venv，重建..."
+    rmdir /s /q "%VENV_DIR%" >> "%LOG%" 2>&1
+)
+if not exist "%VENV_DIR%\Scripts\python.exe" (
+    "!PY_EXE!" -m venv "%VENV_DIR%" >> "%LOG%" 2>&1
+    if errorlevel 1 (
+        call :ui_fail "创建 venv 失败，详见 %LOG%"
+        call :ui_summary
+        pause & exit /b 1
+    )
+)
+set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
+call :ui_info "升级 pip..."
+"%VENV_PY%" -m pip install --upgrade pip >> "%LOG%" 2>&1
+call :ui_info "安装 backend 依赖 (pip install -e .[dev])..."
+pushd "%PROJ_ROOT%\backend"
+"%VENV_PY%" -m pip install -e ".[dev]" >> "%LOG%" 2>&1
+set "PIP_RC=!errorlevel!"
+popd
+if not "!PIP_RC!"=="0" (
+    call :ui_fail "backend pip install 失败，详见 %LOG%"
+    call :ui_summary
+    pause & exit /b 1
+)
+call :ui_ok
+
+REM --- 3. Node.js ---
+call :ui_step "检查 Node.js (>=18)"
+where node >nul 2>nul
+if errorlevel 1 (
+    if defined WINGET_EXE (
+        call :ui_info "winget install OpenJS.NodeJS.LTS..."
+        "!WINGET_EXE!" install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+        call :refresh_path
+    )
+)
+where node >nul 2>nul
+if errorlevel 1 (
+    call :ui_fail "未找到 Node.js (18+)"
+    call :ui_summary
+    pause & exit /b 1
+)
+for /f "delims=" %%v in ('node --version 2^>^&1') do set NODEVER=%%v
+call :ui_ok "Node !NODEVER!"
+
+REM --- 4. 前端 npm install + build ---
+call :ui_step "前端 npm install + build"
+pushd "%PROJ_ROOT%\frontend"
+call :ui_info "npm install ..."
+call npm install --no-audit --no-fund >> "%LOG%" 2>&1
+if errorlevel 1 (
+    popd
+    call :ui_fail "npm install 失败，详见 %LOG%"
+    call :ui_summary
+    pause & exit /b 1
+)
+call :ui_info "npm run build ..."
+call npm run build >> "%LOG%" 2>&1
+if errorlevel 1 (
+    popd
+    call :ui_fail "npm run build 失败，详见 %LOG%"
+    call :ui_summary
+    pause & exit /b 1
+)
+popd
+call :ui_ok
+
+REM --- 5. Ollama 检查 + 拉模型 ---
+call :ui_step "检查 Ollama + 拉取模型"
+set "OLLAMA_WARN=0"
+where ollama >nul 2>nul
+if errorlevel 1 (
+    if defined WINGET_EXE (
+        call :ui_info "winget install Ollama.Ollama..."
+        "!WINGET_EXE!" install -e --id Ollama.Ollama --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            call :ui_warn "winget 安装 Ollama 失败"
+            set "OLLAMA_WARN=1"
+            goto :ollama_done
+        )
+        call :refresh_path
+    ) else (
+        call :ui_warn "未找到 ollama 且 winget 不可用"
+        set "OLLAMA_WARN=1"
+        goto :ollama_done
+    )
+)
+where ollama >nul 2>nul
+if errorlevel 1 (
+    call :ui_warn "Ollama 已安装但 PATH 未生效；重开 cmd 后可用"
+    set "OLLAMA_WARN=1"
+    goto :ollama_done
+)
+if not defined APM_AUTO_PULL set APM_AUTO_PULL=1
+if not defined APM_LLM_MODEL set APM_LLM_MODEL=qwen2.5:7b-instruct
+if "!APM_AUTO_PULL!"=="1" (
+    call :ui_info "ollama pull !APM_LLM_MODEL! (约 5GB, 首次 10-30 分钟)"
+    ollama pull "!APM_LLM_MODEL!"
+    if errorlevel 1 (
+        call :ui_warn "ollama pull 失败；稍后手动: ollama pull !APM_LLM_MODEL!"
+        set "OLLAMA_WARN=1"
+    )
+) else (
+    call :ui_info "已跳过模型拉取 (APM_AUTO_PULL=0)"
+    call :ui_info "稍后手动: ollama pull !APM_LLM_MODEL!"
+)
+:ollama_done
+if "!OLLAMA_WARN!"=="1" (
+    call :ui_ok_warn "Ollama 部分完成"
+) else (
+    call :ui_ok
+)
+
+call :ui_summary
+
+echo.
+echo 日常启动: 双击 scripts\start.bat
+echo 日志文件: %LOG%
+if "%OWN_LOG%"=="1" pause
+endlocal
+exit /b 0
+
+REM ============================================================
+REM  >>>>>>>>>>>>>>>>  _common.bat 内容内联区  <<<<<<<<<<<<<<<<
+REM ============================================================
+
+:{{COMMON_MARK}}
+{{COMMON_BODY}}

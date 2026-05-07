@@ -1,0 +1,22 @@
+layouts:
+  cover:           { index: 0, placeholders: { title: 0, subtitle: 1, footer: 10 } }
+  toc:             { index: 1, placeholders: { title: 0, body: 1 } }
+  section-divider: { index: 2, placeholders: { number: 10, title: 0 } }
+  content-bullets: { index: 3, placeholders: { title: 0, body: 1 } }
+  content-image:   { index: 4, placeholders: { title: 0, body: 1, image: 13 } }
+  content-table:   { index: 5, placeholders: { title: 0, body: 1, caption: 14 } }
+  closing:         { index: 6, placeholders: { title: 0, subtitle: 1 } }
+
+theme:
+  primary:     "#1F6FEB"
+  primary-2:   "#0D1117"
+  accent:      "#39D0D8"
+  background:  "#F6F8FB"
+  text:        "#0B0B0F"
+  text-mute:   "#6B7280"
+  grid:        "#DCE3EE"
+
+fonts:
+  heading: "Inter"
+  body:    "Inter"
+  mono:    "JetBrains Mono"
