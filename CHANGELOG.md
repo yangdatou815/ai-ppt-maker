@@ -65,6 +65,18 @@ Categories used (in order, omit empty ones):
   test, both replaced by the real implementation above.
 
 ### Fixed
+- **Silent-fallback bug #2 — corporate proxy intercepts loopback Ollama calls.**
+  When the launching shell had `http_proxy` set but no `NO_PROXY`, the
+  backend's `httpx.Client` routed every request — including
+  `http://127.0.0.1:11434/api/chat` — through the proxy, which returned
+  `403 Forbidden` for the internal IP. The pipeline silently flipped to
+  the rule-based fallback even though Ollama was healthy locally. Fixed by
+  passing `trust_env=False` to the LLM client's `httpx.Client`: Ollama is
+  always a direct connection by design (loopback for bare-metal,
+  `host.docker.internal` for docker-compose, private LAN for remote-GPU
+  setups), so reading proxy env vars there only ever creates this trap.
+  Diagnostic for next time: `tr '\0' '\n' < /proc/<pid>/environ | grep -i
+  proxy` shows what the running process actually inherited.
 - `OutlineDoc.cover_meta` previously rejected `null` values, causing
   perfectly good LLM output to fall through to the rule-based fallback
   (the "Fallback (LLM 不可用)" badge appeared in the UI even when Ollama

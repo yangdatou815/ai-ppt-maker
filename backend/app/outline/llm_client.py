@@ -42,7 +42,15 @@ class OllamaClient:
         self._client = client  # injected for tests; we own lifecycle when None
 
     def _new_client(self) -> httpx.Client:
-        return httpx.Client(timeout=self.timeout_s)
+        # ``trust_env=False`` makes httpx ignore ``HTTP_PROXY`` / ``HTTPS_PROXY``
+        # / ``NO_PROXY`` from the environment. Ollama is always a direct
+        # connection (loopback for bare-metal, ``host.docker.internal`` for
+        # docker-compose, or a private LAN host for remote-GPU setups). On
+        # corporate networks the proxy returns 403 for internal IPs, which
+        # silently flips the pipeline to the rule-based fallback. Hard-coding
+        # "no proxy" here means the operator doesn't need to remember to
+        # export ``NO_PROXY=127.0.0.1`` before starting uvicorn.
+        return httpx.Client(timeout=self.timeout_s, trust_env=False)
 
     def chat_json(self, system: str, user: str) -> LlmResponse:
         payload = {
