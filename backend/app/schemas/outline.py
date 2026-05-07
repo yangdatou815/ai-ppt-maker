@@ -1,9 +1,9 @@
 """OutlineDoc and friends — see docs/architecture.md §3.1."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Bullet(BaseModel):
@@ -41,3 +41,13 @@ class OutlineDoc(BaseModel):
     language: Literal["zh", "en", "auto"] = "auto"
     sections: list[Section]
     cover_meta: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("cover_meta", mode="before")
+    @classmethod
+    def _drop_nulls(cls, v: Any) -> Any:
+        """LLMs often emit ``{"date": null, "company": null}`` for unknown
+        fields. Drop those rather than failing validation — a missing field
+        is the right semantic for "the LLM didn't have this info"."""
+        if isinstance(v, dict):
+            return {k: str(val) for k, val in v.items() if val is not None}
+        return v

@@ -10,6 +10,20 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
+### Fixed
+- `OutlineDoc.cover_meta` previously rejected `null` values, causing
+  perfectly good LLM output to fall through to the rule-based fallback
+  (the "Fallback (LLM 不可用)" badge appeared in the UI even when Ollama
+  responded successfully). qwen2.5 routinely emits
+  `cover_meta: { "date": null, "company": null }` for fields it doesn't
+  know. Schema now drops `null` values pre-validation and coerces the rest
+  to string. Verified against the same HotPulse sample: previously
+  `used_fallback=true` with a Pydantic validation error in logs, now
+  `used_fallback=false` with 5 LLM-generated sections.
+- `app/outline/prompts.py` system prompt now explicitly tells the model to
+  OMIT optional keys rather than emit `null`, reducing the rate at which
+  the salvage path is needed.
+
 ### Added
 - Frontend M2 outline UI: textarea + source-type/language selectors + live
   elapsed timer, posts to `/api/outline` and renders the resulting outline
