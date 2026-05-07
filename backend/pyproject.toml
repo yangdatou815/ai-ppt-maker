@@ -19,6 +19,12 @@ dependencies = [
     "openpyxl>=3.1.2",
     "Pillow>=10.3",
     "httpx>=0.27",
+    # Pydantic v2 eval-type-checks `str | None` annotations at class-build
+    # time. On Python 3.9 (our minimum) PEP 604 isn't natively evaluable, so
+    # without this backport class definition raises ``TypeError: Unable to
+    # evaluate type annotation 'str | None'``. Locally it slipped in via some
+    # dev tool's transitive deps; CI hit it on a clean install.
+    "eval_type_backport>=0.2; python_version < '3.10'",
 ]
 
 [project.optional-dependencies]

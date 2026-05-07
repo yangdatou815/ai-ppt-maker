@@ -70,9 +70,7 @@ docker compose up --build
 
 ## 持续集成
 
-> **当前状态**：Gitee Go 流水线暂停。手写在 `.workflow/*.yml` 的三条流水线（branch / pr / master）符合 Gitee Go 1.x 文档的 schema，但 2026 年改版后控制台报「流水线配置有误」。已把目录改名为 `.workflow.disabled/` 防止持续噪音；DoD 命令依然完整、本地可跑。
->
-> 重启路径见 [`.workflow.disabled/README.md`](.workflow.disabled/README.md)：到 Gitee Go 网页用「图形化编辑」配通后再同步回仓库。
+`.workflow/master-pipeline.yml` 是 Gitee Go 2.x 流水线（`build_stage` ruff + drift；`test_stage` pytest + coverage 70% gate），main 分支 push 自动触发。前端构建（vitest + vite build）暂未纳入，因为 Node 插件的 2.x schema 还没拿到样本 —— 仍要靠本地 `bash scripts/dod.sh` 守住。
 
 ## 排错：打开 DEBUG 日志
 

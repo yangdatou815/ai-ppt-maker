@@ -10,16 +10,35 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
+### Fixed
+- **CI silent dependency on `eval_type_backport`.** Pydantic v2 evaluates
+  PEP 604 union annotations (`str | None`) at class-build time, which on
+  Python 3.9 (our minimum) raises `TypeError: Unable to evaluate type
+  annotation 'str | None'` unless `eval_type_backport` is installed. Local
+  `pytest` passed because some dev tool's transitive deps had pulled it in;
+  Gitee Go's clean CI environment did not. Added
+  `eval_type_backport>=0.2; python_version < '3.10'` to
+  `backend/pyproject.toml` so any 3.9 install gets it explicitly.
+
 ### Changed
-- **Gitee Go pipelines temporarily disabled.** Renamed `.workflow/` →
-  `.workflow.disabled/`. The hand-written branch / pr / master YAMLs match
-  the Gitee Go 1.x reference but the 2026 console rejects them with
-  「流水线配置有误」 and several of Gitee's official YAML-schema docs now
-  return 404, so we can't fix in-place. Files kept for reference + diff
-  basis once the pipelines are reconfigured via Gitee Go's graphical
-  editor; restart steps documented in `.workflow.disabled/README.md`. DoD
-  commands (`bash scripts/dod.sh`, `python scripts/build_scripts.py
-  --check`) remain unchanged and still pass locally.
+- **Gitee Go pipelines back online — `.workflow/master-pipeline.yml` rewritten
+  for Gitee Go 2.x schema** (verified saving + triggering on 2026-05-07).
+  Key schema differences from the old 1.x docs we'd been writing against:
+  - `displayName` must be ASCII (`[A-Za-z0-9_-]`); 中文/空格 rejected with
+    「当前流水线名称不符合规范」.
+  - Step plugin fields (`pythonVersion` / `commands`) sit directly under
+    `step:`, **not** nested under `inputs:` like some 2.x examples imply.
+  - Every stage requires `strategy: naturally` + `trigger: auto`.
+  - Every step requires `artifacts:`, `caches:`, `notify:` lists (empty OK)
+    and `strategy.retry: '0'`.
+  - Top-level `triggers.push.branches` uses `prefix:` (prefix match), not
+    `include:` / `exclude:` from the 1.x docs.
+  - `build@nodejs` step intentionally absent for now — Node plugin's real
+    schema not yet captured; will add once we sample one from the
+    graphical editor.
+
+  Old docs at `.workflow.disabled/` retired; that directory removed in
+  this commit.
 
 ### Added
 - **M2-2 — outline → editable .pptx download is live.** End-to-end flow now
