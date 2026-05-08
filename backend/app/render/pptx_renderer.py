@@ -26,6 +26,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from PIL import Image, UnidentifiedImageError
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
@@ -214,39 +215,111 @@ def _bullets_section_slide(slide, theme: _Theme, section: Section) -> None:
     )
 
 
+def _resolve_upload(file_id: str | None, uploads_dir: Path | None) -> Path | None:
+    """Map a section ``file_id`` to a real upload, with traversal guard."""
+    if not file_id or uploads_dir is None:
+        return None
+    candidate = (uploads_dir / file_id).resolve()
+    try:
+        candidate.relative_to(uploads_dir.resolve())
+    except ValueError:
+        log.warning("rejecting upload path outside uploads_dir: %s", file_id)
+        return None
+    return candidate if candidate.is_file() else None
+
+
+# Golden-ratio constants for image-slide layout. The available content band
+# below the slide header is ~4.55" tall and ~11.93" wide. We allow the image
+# box to occupy between 38.2% and 61.8% of that width, so the text/image
+# proportion always falls inside the golden window even for extreme aspects.
+_PHI = 1.618
+_CONTENT_LEFT = 0.7      # inches
+_CONTENT_TOP = 2.45      # inches
+_CONTENT_WIDTH = 11.93   # inches
+_CONTENT_HEIGHT = 4.55   # inches
+_GUTTER = 0.4            # inches between text column and image
+_IMG_MIN_FRAC = 1.0 / (1.0 + _PHI)   # ≈ 0.382
+_IMG_MAX_FRAC = _PHI / (1.0 + _PHI)  # ≈ 0.618
+
+
+def _image_box_for_aspect(aspect: float) -> tuple[float, float, float, float]:
+    """Return ``(text_w, img_w, img_h, img_top_offset)`` in inches for a given image aspect.
+
+    Image is fit-into a box that preserves ``aspect`` (= width/height). Box width
+    is clamped to the golden-ratio bounds so the page composition stays balanced.
+    Image is vertically centred within the content band.
+    """
+    inner_w = _CONTENT_WIDTH - _GUTTER
+    # Try fit-to-height first.
+    img_h = _CONTENT_HEIGHT
+    img_w = img_h * aspect
+    img_w_min = inner_w * _IMG_MIN_FRAC
+    img_w_max = inner_w * _IMG_MAX_FRAC
+    if img_w > img_w_max:
+        img_w = img_w_max
+        img_h = img_w / aspect
+    elif img_w < img_w_min:
+        img_w = img_w_min
+        img_h = img_w / aspect
+        if img_h > _CONTENT_HEIGHT:
+            # Very tall portrait — recompute from height again with new width cap.
+            img_h = _CONTENT_HEIGHT
+            img_w = img_h * aspect
+    text_w = _CONTENT_WIDTH - _GUTTER - img_w
+    img_top_offset = max(0.0, (_CONTENT_HEIGHT - img_h) / 2.0)
+    return text_w, img_w, img_h, img_top_offset
+
+
 def _image_section_slide(
     slide, theme: _Theme, section: Section, uploads_dir: Path | None,
 ) -> None:
-    # Bullets on the left half; image (or placeholder) on the right.
+    """Render an image section.
+
+    Images preserve their original aspect ratio (no stretching). The text
+    column width adapts to the image so the overall composition approximates
+    the golden ratio (φ ≈ 1.618).
+    """
+    file_id = section.image.file_id if section.image else None
+    img_path = _resolve_upload(file_id, uploads_dir)
+
+    # Probe real dimensions to drive the layout. If the file is missing or
+    # unreadable we keep a balanced fallback (square-ish).
+    aspect: float | None = None
+    if img_path is not None:
+        try:
+            with Image.open(img_path) as im:
+                w_px, h_px = im.size
+            if w_px > 0 and h_px > 0:
+                aspect = w_px / h_px
+        except (UnidentifiedImageError, OSError) as exc:
+            log.warning("could not read image dimensions for %s: %s", file_id, exc)
+
+    if aspect is None:
+        # Placeholder / unknown — pick a 4:3 box (golden-friendly default).
+        aspect = 4.0 / 3.0
+
+    text_w_in, img_w_in, img_h_in, img_top_off_in = _image_box_for_aspect(aspect)
+
+    # Bullets on the left, width derived from layout.
     _draw_bullets(
         slide, theme, section,
-        left=Inches(0.7), top=Inches(2.45), width=Inches(5.6), height=Inches(4.5),
+        left=Inches(_CONTENT_LEFT),
+        top=Inches(_CONTENT_TOP),
+        width=Inches(text_w_in),
+        height=Inches(_CONTENT_HEIGHT),
     )
 
-    img_left, img_top = Inches(6.7), Inches(2.45)
-    img_w, img_h = Inches(5.9), Inches(4.0)
-
-    file_id = section.image.file_id if section.image else None
-    img_path: Path | None = None
-    if file_id and uploads_dir is not None:
-        candidate = (uploads_dir / file_id).resolve()
-        # Defence against path traversal: ``file_id`` should be a flat name,
-        # but a malicious outline could try ``../../etc/passwd``. Reject anything
-        # that escapes ``uploads_dir``.
-        try:
-            candidate.relative_to(uploads_dir.resolve())
-        except ValueError:
-            log.warning("rejecting upload path outside uploads_dir: %s", file_id)
-            candidate = None  # type: ignore[assignment]
-        if candidate is not None and candidate.is_file():
-            img_path = candidate
+    img_left = Inches(_CONTENT_LEFT + text_w_in + _GUTTER)
+    img_top = Inches(_CONTENT_TOP + img_top_off_in)
+    img_w = Inches(img_w_in)
+    img_h = Inches(img_h_in)
 
     if img_path is not None:
         try:
+            # Pass width AND height computed from the real aspect — python-pptx
+            # will honour them exactly, so no stretching occurs.
             slide.shapes.add_picture(str(img_path), img_left, img_top, width=img_w, height=img_h)
         except Exception as exc:  # noqa: BLE001
-            # python-pptx raises on unreadable / corrupt images. Don't fail the
-            # whole render for one bad slide — fall back to placeholder.
             log.warning("add_picture failed for %s: %s", file_id, exc)
             img_path = None
 
@@ -256,7 +329,7 @@ def _image_section_slide(
             f"[image: {file_id}]" if file_id else "[image placeholder]"
         )
         _add_text(
-            slide, img_left, img_top + Inches(1.7), img_w, Inches(0.6),
+            slide, img_left, img_top + Inches(img_h_in / 2 - 0.3), img_w, Inches(0.6),
             text=label,
             font=theme.body_font, size_pt=14, color=theme.neutral,
             align=PP_ALIGN.CENTER,
