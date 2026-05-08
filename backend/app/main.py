@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import debug, generate, jobs, outline, templates, upload
+from app.api import debug, generate, jobs, outline, roadmap, templates, upload
 from app.config import get_settings
 from app.logging_setup import setup_logging
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(upload.router, prefix="/api", tags=["upload"])
     app.include_router(jobs.router, prefix="/api", tags=["jobs"])
     app.include_router(debug.router, prefix="/api", tags=["debug"])
+    app.include_router(roadmap.router, prefix="/api", tags=["roadmap"])
 
     # Serve frontend/dist if it exists (built via `npm run build` or scripts/deploy.*).
     # Lets a single uvicorn process serve both API and SPA — used by start.bat / start.sh.

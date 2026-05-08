@@ -228,3 +228,47 @@ export function openLogStream(onLine: (l: LogLine) => void): EventSource {
   }
   return es
 }
+
+// ---------------------------------------------------------------------------
+// Roadmap (project bird's-eye view)
+// ---------------------------------------------------------------------------
+
+export type RoadmapStatus = 'done' | 'in-progress' | 'planned'
+
+export interface RoadmapItem {
+  name: string
+  status: RoadmapStatus
+}
+
+export interface RoadmapMilestone {
+  id: string
+  name: string
+  summary: string | null
+  items: RoadmapItem[]
+}
+
+export interface RoadmapPhase {
+  id: string
+  name: string
+  summary: string | null
+  milestones: RoadmapMilestone[]
+}
+
+export interface RoadmapStats {
+  total: number
+  done: number
+  in_progress: number
+  planned: number
+  done_pct: number
+}
+
+export interface RoadmapDoc {
+  phases: RoadmapPhase[]
+  stats: RoadmapStats
+}
+
+export async function getRoadmap(): Promise<RoadmapDoc> {
+  const r = await fetch(`${BASE}/roadmap`)
+  if (!r.ok) throw new Error(`GET /roadmap failed: ${r.status}`)
+  return r.json()
+}

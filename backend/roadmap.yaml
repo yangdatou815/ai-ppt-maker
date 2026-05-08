@@ -1,0 +1,120 @@
+# ai-ppt-maker roadmap.
+#
+# Single source of truth for the in-app Roadmap view. Status values:
+#   done         — shipped to a released version
+#   in-progress  — work has started but not released
+#   planned      — not started
+#
+# Edit this file when scope changes. Keep it short — link to PRD/CHANGELOG
+# instead of duplicating long descriptions.
+
+phases:
+  - id: foundation
+    name: 基础打底
+    summary: 工程脚手架、CI、模板系统
+    milestones:
+      - id: M1
+        name: 骨架可跑
+        summary: FastAPI + Vue3 + 模板加载 + Ollama 健康检查
+        items:
+          - { name: "FastAPI 工程脚手架 + 配置/日志", status: done }
+          - { name: "Vue3 + Vite + TypeScript 前端脚手架", status: done }
+          - { name: "GET /api/templates 返回 3 套模板", status: done }
+          - { name: "GET /api/healthz", status: done }
+          - { name: "Gitee Go CI（pytest + ruff）", status: done }
+
+  - id: text-to-pptx
+    name: 文本 → pptx 端到端
+    summary: 大纲生成、渲染、上传、版面自适应
+    milestones:
+      - id: M2-1
+        name: 大纲生成管线
+        summary: 纯文本 → Ollama → 结构化 OutlineDoc
+        items:
+          - { name: "POST /api/outline", status: done }
+          - { name: "Ollama httpx 客户端 + retry/repair", status: done }
+          - { name: "Pydantic OutlineDoc/Section schema", status: done }
+
+      - id: M2-2
+        name: 渲染 + 下载
+        summary: OutlineDoc → .pptx 文件
+        items:
+          - { name: "POST /api/generate 返回 .pptx", status: done }
+          - { name: "python-pptx 程序化渲染（cover/bullets/closing）", status: done }
+          - { name: "speaker notes 写入备注页", status: done }
+
+      - id: M2-3
+        name: 图片 / 表格 / 上传
+        summary: 多版面支持 + 文件上传 + 路径越权防护
+        items:
+          - { name: "POST /api/upload（流式 + MIME 白名单 + 大小限制）", status: done }
+          - { name: "_image_section_slide / _table_section_slide", status: done }
+          - { name: "前端 + 添加图片 / + 添加表格 UI", status: done }
+          - { name: "路径穿越防护（uploads_dir 边界）", status: done }
+
+      - id: M2-4
+        name: 排版自适应
+        summary: 图片保比 + 黄金比例 + 表格列宽自适应
+        items:
+          - { name: "图片保留原始横竖比 + 黄金比例布局", status: done }
+          - { name: "表格列宽按内容自适应 + 水平居中", status: done }
+
+  - id: templates-ai
+    name: 三套模板 + AI 自动选
+    summary: 补齐 master.pptx，引入主题分类
+    milestones:
+      - id: M3-1
+        name: master.pptx 模板
+        summary: 三套真正的 .pptx 母版（替代当前的程序化主题）
+        items:
+          - { name: "tech / business / academic master.pptx", status: planned }
+          - { name: "渲染器从 master.pptx 派生 layout", status: planned }
+          - { name: "前端模板预览缩略图", status: planned }
+
+      - id: M3-2
+        name: AI 模板分类
+        summary: 根据文本主题自动选模板
+        items:
+          - { name: "主题分类 prompt + Ollama 调用", status: planned }
+          - { name: "POST /api/classify-template", status: planned }
+          - { name: "前端 auto-pick 开关", status: planned }
+
+  - id: multimodal
+    name: 多模态输入
+    summary: .md / .docx / 图片 / 表格 解析
+    milestones:
+      - id: M4-1
+        name: 文档解析
+        items:
+          - { name: ".md 文件直接当大纲", status: planned }
+          - { name: ".docx 文件解析为大纲", status: planned }
+
+      - id: M4-2
+        name: 图片/表格抽取
+        items:
+          - { name: "上传 .docx 中嵌入的图片复用为 ImageRef", status: planned }
+          - { name: "粘贴 Excel 区域转 TableData", status: planned }
+
+  - id: experience
+    name: 体验打磨
+    summary: 预览、进度条、错误分级、一键部署
+    milestones:
+      - id: M5-1
+        name: 异步任务 + 进度
+        items:
+          - { name: "/api/jobs 异步队列骨架", status: in-progress }
+          - { name: "前端进度条 + 任务状态轮询", status: planned }
+
+      - id: M5-2
+        name: 缩略图预览
+        items:
+          - { name: "LibreOffice headless 渲染前 5 页 PNG", status: planned }
+          - { name: "前端缩略图轮播", status: planned }
+
+      - id: M5-3
+        name: 运维 / 工具
+        items:
+          - { name: "运行时调试开关 + SSE 日志", status: done }
+          - { name: "Roadmap 视图（项目鸟瞰）", status: in-progress }
+          - { name: "docker-compose 一键起", status: planned }
+          - { name: "Gitee Go 加 frontend 构建 stage", status: planned }
