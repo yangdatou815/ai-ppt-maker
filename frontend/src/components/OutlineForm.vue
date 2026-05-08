@@ -50,11 +50,28 @@ const elapsedDisplay = computed(() => {
   return ''
 })
 
+// Asymptotic progress (0..100). Approaches 95 % over ~12 s, never reaches
+// 100 % until the request completes — at which point we snap to 100.
+const PROGRESS_TAU_MS = 4000
+function _asymptotic(elapsedMs: number): number {
+  return 95 * (1 - Math.exp(-elapsedMs / PROGRESS_TAU_MS))
+}
+const outlineProgress = ref(0)
+function _refreshOutlineProgress() {
+  if (!loading.value) {
+    outlineProgress.value = result.value ? 100 : 0
+    return
+  }
+  outlineProgress.value = _asymptotic(tickMs.value)
+}
+
 function startTicker() {
   startedAt.value = performance.now()
   tickMs.value = 0
+  outlineProgress.value = 0
   tickHandle = setInterval(() => {
     if (startedAt.value !== null) tickMs.value = performance.now() - startedAt.value
+    _refreshOutlineProgress()
   }, 100)
 }
 
@@ -64,6 +81,8 @@ function stopTicker() {
     tickHandle = null
   }
   startedAt.value = null
+  // Snap to 100 % so the user sees the bar fill before it disappears.
+  outlineProgress.value = 100
 }
 
 async function submit() {
@@ -101,11 +120,19 @@ const canGenerate = computed(
   () => !!result.value && !!props.template && !generating.value,
 )
 
+const generateProgress = ref(0)
+let genTickHandle: ReturnType<typeof setInterval> | null = null
+
 async function generate() {
   if (!canGenerate.value || !result.value || !props.template) return
   generating.value = true
   genError.value = null
   genStatus.value = null
+  generateProgress.value = 0
+  const genStart = performance.now()
+  genTickHandle = setInterval(() => {
+    generateProgress.value = _asymptotic(performance.now() - genStart)
+  }, 100)
   try {
     const r = await generatePptx({
       outline: result.value.outline,
@@ -117,6 +144,11 @@ async function generate() {
     genError.value = e instanceof Error ? e.message : String(e)
   } finally {
     generating.value = false
+    if (genTickHandle !== null) {
+      clearInterval(genTickHandle)
+      genTickHandle = null
+    }
+    generateProgress.value = 100
   }
 }
 
@@ -251,6 +283,12 @@ function removeTable(i: number) {
       </button>
     </div>
 
+    <div v-if="loading" class="progress" role="progressbar"
+         :aria-valuenow="Math.round(outlineProgress)" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar" :style="{ width: outlineProgress + '%' }" />
+      <span class="progress-text">大纲生成中… {{ Math.round(outlineProgress) }}%</span>
+    </div>
+
     <div v-if="error" class="err" role="alert">{{ error }}</div>
 
     <article v-if="result" class="result">
@@ -343,6 +381,12 @@ function removeTable(i: number) {
         <span v-if="genStatus" class="ok" role="status">{{ genStatus }}</span>
         <span v-if="genError" class="err" role="alert">{{ genError }}</span>
       </footer>
+
+      <div v-if="generating" class="progress" role="progressbar"
+           :aria-valuenow="Math.round(generateProgress)" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar" :style="{ width: generateProgress + '%' }" />
+        <span class="progress-text">PPT 生成中… {{ Math.round(generateProgress) }}%</span>
+      </div>
     </article>
   </section>
 </template>

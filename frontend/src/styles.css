@@ -1040,3 +1040,32 @@ button.primary:disabled {
   font-family: ui-monospace, monospace;
   font-size: 0.9rem;
 }
+
+/* Progress bar — used during outline + pptx generation. */
+.progress {
+  position: relative;
+  margin: 12px 0;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid #111;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: #111;
+  transition: width 120ms linear;
+}
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #111;
+  mix-blend-mode: difference;
+  filter: invert(1);
+}

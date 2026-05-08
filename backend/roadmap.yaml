@@ -103,7 +103,8 @@ phases:
         name: 异步任务 + 进度
         items:
           - { name: "/api/jobs 异步队列骨架", status: in-progress }
-          - { name: "前端进度条 + 任务状态轮询", status: planned }
+          - { name: "前端进度条（生成大纲 / 生成 PPT）", status: done }
+          - { name: "前端任务状态轮询", status: planned }
 
       - id: M5-2
         name: 缩略图预览
