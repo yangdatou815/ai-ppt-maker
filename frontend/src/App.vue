@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { healthz, listTemplates, type TemplateInfo } from './api/client'
+import DebugDrawer from './components/DebugDrawer.vue'
 import OutlineForm from './components/OutlineForm.vue'
 import TemplatePicker from './components/TemplatePicker.vue'
 
@@ -22,6 +23,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <DebugDrawer />
   <main>
     <header class="page-header">
       <h1>ai-ppt-maker</h1>

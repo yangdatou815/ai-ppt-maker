@@ -177,3 +177,54 @@ export function parseTableInput(text: string, caption: string | null = null): Ta
   const rows = lines.slice(1).map(split)
   return { headers, rows, caption }
 }
+
+// ---------------------------------------------------------------------------
+// Debug toggle + log streaming
+// ---------------------------------------------------------------------------
+
+export interface DebugState {
+  enabled: boolean
+  level: string
+  buffered: number
+}
+
+export interface LogLine {
+  ts: number
+  level: string
+  name: string
+  msg: string
+}
+
+export async function getDebugState(): Promise<DebugState> {
+  const r = await fetch(`${BASE}/debug`)
+  if (!r.ok) throw new Error(`GET /debug failed: ${r.status}`)
+  return r.json()
+}
+
+export async function setDebugState(enabled: boolean): Promise<DebugState> {
+  const r = await fetch(`${BASE}/debug`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+  if (!r.ok) throw new Error(`POST /debug failed: ${r.status}`)
+  return r.json()
+}
+
+/**
+ * Open a Server-Sent Events subscription to the live log stream.
+ * Returns the EventSource so the caller can `.close()` on unmount.
+ * `onLine` is invoked for each parseable record; junk lines are ignored.
+ */
+export function openLogStream(onLine: (l: LogLine) => void): EventSource {
+  const es = new EventSource(`${BASE}/debug/logs/stream`)
+  es.onmessage = (ev) => {
+    try {
+      const obj = JSON.parse(ev.data) as LogLine
+      onLine(obj)
+    } catch {
+      /* ignore malformed frame */
+    }
+  }
+  return es
+}
