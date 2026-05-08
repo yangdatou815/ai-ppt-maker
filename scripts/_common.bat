@@ -285,6 +285,48 @@ set "_LOC_EXE="
 set "_LOC_HIT="
 exit /b 0
 
+REM ====================== install winget itself ======================
+REM Downloads the latest Microsoft.DesktopAppInstaller .msixbundle from
+REM GitHub releases and installs via Add-AppxPackage. Used to bootstrap a
+REM working winget on machines whose in-box winget is missing or too old
+REM (e.g. v1.2 with corrupt source database). Sets WINGET_EXE on success.
+REM Requires PowerShell + internet. exit /b 0 on success, 1 on failure.
+:install_winget
+where powershell >nul 2>nul
+if errorlevel 1 (
+    if defined LOG echo [INSTALL-WINGET] no powershell available >> "%LOG%"
+    exit /b 1
+)
+set "_WG_TMP=%TEMP%\AppInstaller_%RANDOM%.msixbundle"
+if defined LOG echo [INSTALL-WINGET %TIME%] downloading latest msixbundle from GitHub >> "%LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $r = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; $u = ($r.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1).browser_download_url; if (-not $u) { throw 'no msixbundle' }; Invoke-WebRequest -Uri $u -OutFile '%_WG_TMP%'" >> "%LOG%" 2>&1
+if not exist "%_WG_TMP%" (
+    if defined LOG echo [INSTALL-WINGET] download failed >> "%LOG%"
+    exit /b 1
+)
+if defined LOG echo [INSTALL-WINGET] installing via Add-AppxPackage >> "%LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop'; Add-AppxPackage -Path '%_WG_TMP%' -ForceApplicationShutdown" >> "%LOG%" 2>&1
+set "_AP_RC=%ERRORLEVEL%"
+del "%_WG_TMP%" >nul 2>nul
+if not "%_AP_RC%"=="0" (
+    if defined LOG echo [INSTALL-WINGET] Add-AppxPackage rc=%_AP_RC% >> "%LOG%"
+    exit /b 1
+)
+REM Re-detect winget after install
+set "WINGET_EXE="
+if exist "%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe" set "WINGET_EXE=%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe"
+if not defined WINGET_EXE (
+    for /f "delims=" %%W in ('where winget 2^>nul') do if not defined WINGET_EXE set "WINGET_EXE=%%W"
+)
+if not defined WINGET_EXE (
+    if defined LOG echo [INSTALL-WINGET] post-install detect failed >> "%LOG%"
+    exit /b 1
+)
+if defined LOG echo [INSTALL-WINGET] success: !WINGET_EXE! >> "%LOG%"
+exit /b 0
+
 REM ====================== system: find real Python ======================
 :find_python
 set "PY_EXE="

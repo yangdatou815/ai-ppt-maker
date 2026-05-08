@@ -39,12 +39,38 @@ if not defined WINGET_EXE (
 )
 set HAVE_WINGET=0
 if defined WINGET_EXE set HAVE_WINGET=1
-if %HAVE_WINGET%==0 (
-    call :ui_warn "未找到 winget。请到 Microsoft Store 搜 '应用安装程序' 安装"
-    call :ui_ok_warn "winget 缺失（继续，但需要手动安装依赖）"
+
+if %HAVE_WINGET%==1 (
+    REM Detect old winget (v1.0..v1.4) — known to have broken source DBs.
+    set "_WG_VER="
+    for /f "tokens=*" %%V in ('"%WINGET_EXE%" --version 2^>nul') do set "_WG_VER=%%V"
+    if defined LOG echo [WINGET-VER] !_WG_VER! >> "%LOG%"
+    set "_WG_OLD=0"
+    if defined _WG_VER (
+        echo !_WG_VER! | findstr /b /c:"v1.0" /c:"v1.1" /c:"v1.2" /c:"v1.3" /c:"v1.4" >nul && set "_WG_OLD=1"
+    )
+    if "!_WG_OLD!"=="1" (
+        call :ui_info "winget 版本过旧 (!_WG_VER!)，自动升级中（下载约 30-100 MB）..."
+        call :install_winget
+        if not errorlevel 1 (
+            for /f "tokens=*" %%V in ('"!WINGET_EXE!" --version 2^>nul') do set "_WG_VER=%%V"
+            call :ui_info "winget 已升级到 !_WG_VER!"
+        ) else (
+            call :ui_warn "winget 自动升级失败（详见 install.log），将继续使用旧版"
+        )
+    )
+    call :ui_ok "winget !_WG_VER!"
 ) else (
-    "%WINGET_EXE%" --version >> "%LOG%" 2>&1
-    call :ui_ok "winget OK"
+    call :ui_info "winget 不存在，自动安装（下载约 30-100 MB）..."
+    call :install_winget
+    if not errorlevel 1 (
+        set HAVE_WINGET=1
+        for /f "tokens=*" %%V in ('"!WINGET_EXE!" --version 2^>nul') do set "_WG_VER=%%V"
+        call :ui_ok "winget !_WG_VER! 安装成功"
+    ) else (
+        call :ui_warn "winget 自动安装失败。请到 Microsoft Store 搜「应用安装程序」装上后重跑"
+        call :ui_ok_warn "winget 缺失（继续，但需要手动安装依赖）"
+    )
 )
 
 REM --- 1. Python ---
@@ -541,6 +567,48 @@ for %%R in (
 )
 set "_LOC_EXE="
 set "_LOC_HIT="
+exit /b 0
+
+REM ====================== install winget itself ======================
+REM Downloads the latest Microsoft.DesktopAppInstaller .msixbundle from
+REM GitHub releases and installs via Add-AppxPackage. Used to bootstrap a
+REM working winget on machines whose in-box winget is missing or too old
+REM (e.g. v1.2 with corrupt source database). Sets WINGET_EXE on success.
+REM Requires PowerShell + internet. exit /b 0 on success, 1 on failure.
+:install_winget
+where powershell >nul 2>nul
+if errorlevel 1 (
+    if defined LOG echo [INSTALL-WINGET] no powershell available >> "%LOG%"
+    exit /b 1
+)
+set "_WG_TMP=%TEMP%\AppInstaller_%RANDOM%.msixbundle"
+if defined LOG echo [INSTALL-WINGET %TIME%] downloading latest msixbundle from GitHub >> "%LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $r = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; $u = ($r.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1).browser_download_url; if (-not $u) { throw 'no msixbundle' }; Invoke-WebRequest -Uri $u -OutFile '%_WG_TMP%'" >> "%LOG%" 2>&1
+if not exist "%_WG_TMP%" (
+    if defined LOG echo [INSTALL-WINGET] download failed >> "%LOG%"
+    exit /b 1
+)
+if defined LOG echo [INSTALL-WINGET] installing via Add-AppxPackage >> "%LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop'; Add-AppxPackage -Path '%_WG_TMP%' -ForceApplicationShutdown" >> "%LOG%" 2>&1
+set "_AP_RC=%ERRORLEVEL%"
+del "%_WG_TMP%" >nul 2>nul
+if not "%_AP_RC%"=="0" (
+    if defined LOG echo [INSTALL-WINGET] Add-AppxPackage rc=%_AP_RC% >> "%LOG%"
+    exit /b 1
+)
+REM Re-detect winget after install
+set "WINGET_EXE="
+if exist "%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe" set "WINGET_EXE=%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe"
+if not defined WINGET_EXE (
+    for /f "delims=" %%W in ('where winget 2^>nul') do if not defined WINGET_EXE set "WINGET_EXE=%%W"
+)
+if not defined WINGET_EXE (
+    if defined LOG echo [INSTALL-WINGET] post-install detect failed >> "%LOG%"
+    exit /b 1
+)
+if defined LOG echo [INSTALL-WINGET] success: !WINGET_EXE! >> "%LOG%"
 exit /b 0
 
 REM ====================== system: find real Python ======================

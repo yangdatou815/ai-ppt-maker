@@ -36,12 +36,38 @@ if not defined WINGET_EXE (
 )
 set HAVE_WINGET=0
 if defined WINGET_EXE set HAVE_WINGET=1
-if %HAVE_WINGET%==0 (
-    call :ui_warn "未找到 winget。请到 Microsoft Store 搜 '应用安装程序' 安装"
-    call :ui_ok_warn "winget 缺失（继续，但需要手动安装依赖）"
+
+if %HAVE_WINGET%==1 (
+    REM Detect old winget (v1.0..v1.4) — known to have broken source DBs.
+    set "_WG_VER="
+    for /f "tokens=*" %%V in ('"%WINGET_EXE%" --version 2^>nul') do set "_WG_VER=%%V"
+    if defined LOG echo [WINGET-VER] !_WG_VER! >> "%LOG%"
+    set "_WG_OLD=0"
+    if defined _WG_VER (
+        echo !_WG_VER! | findstr /b /c:"v1.0" /c:"v1.1" /c:"v1.2" /c:"v1.3" /c:"v1.4" >nul && set "_WG_OLD=1"
+    )
+    if "!_WG_OLD!"=="1" (
+        call :ui_info "winget 版本过旧 (!_WG_VER!)，自动升级中（下载约 30-100 MB）..."
+        call :install_winget
+        if not errorlevel 1 (
+            for /f "tokens=*" %%V in ('"!WINGET_EXE!" --version 2^>nul') do set "_WG_VER=%%V"
+            call :ui_info "winget 已升级到 !_WG_VER!"
+        ) else (
+            call :ui_warn "winget 自动升级失败（详见 install.log），将继续使用旧版"
+        )
+    )
+    call :ui_ok "winget !_WG_VER!"
 ) else (
-    "%WINGET_EXE%" --version >> "%LOG%" 2>&1
-    call :ui_ok "winget OK"
+    call :ui_info "winget 不存在，自动安装（下载约 30-100 MB）..."
+    call :install_winget
+    if not errorlevel 1 (
+        set HAVE_WINGET=1
+        for /f "tokens=*" %%V in ('"!WINGET_EXE!" --version 2^>nul') do set "_WG_VER=%%V"
+        call :ui_ok "winget !_WG_VER! 安装成功"
+    ) else (
+        call :ui_warn "winget 自动安装失败。请到 Microsoft Store 搜「应用安装程序」装上后重跑"
+        call :ui_ok_warn "winget 缺失（继续，但需要手动安装依赖）"
+    )
 )
 
 REM --- 1. Python ---
