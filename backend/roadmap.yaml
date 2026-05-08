@@ -68,7 +68,7 @@ phases:
         summary: 三套真正的 .pptx 母版（替代当前的程序化主题）
         items:
           - { name: "tech / business / academic master.pptx", status: done }
-          - { name: "渲染器从 master.pptx 派生 layout", status: planned }
+          - { name: "渲染器从 master.pptx 派生 layout", status: done }
           - { name: "前端模板预览缩略图", status: planned }
 
       - id: M3-2
