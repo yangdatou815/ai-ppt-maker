@@ -344,6 +344,36 @@ def _image_section_slide(
         )
 
 
+# Slide width in inches (16:9). Used for centring tables.
+_SLIDE_WIDTH = 13.333
+
+
+def _table_column_widths(
+    headers: list[str], rows: list[list[str]], *, max_total_in: float = 11.9,
+) -> list[float]:
+    """Compute per-column widths in inches, sized to content.
+
+    Heuristic: each column gets ``longest_cell_chars × 0.11"`` plus a small
+    padding, clamped to ``[0.9", 4.5"]``. If the sum exceeds ``max_total_in``
+    we scale all columns down proportionally so the table still fits the slide.
+    """
+    n = len(headers)
+    raw: list[float] = []
+    for ci in range(n):
+        longest = len(headers[ci]) if ci < len(headers) else 1
+        for r in rows:
+            if ci < len(r):
+                longest = max(longest, len(r[ci]))
+        # Char-to-inch heuristic for ~12pt body / 14pt bold header.
+        desired = longest * 0.11 + 0.4
+        raw.append(max(0.9, min(4.5, desired)))
+    total = sum(raw) or 1.0
+    if total > max_total_in:
+        scale = max_total_in / total
+        raw = [w * scale for w in raw]
+    return raw
+
+
 def _table_section_slide(slide, theme: _Theme, section: Section) -> None:
     table = section.table
     if table is None or not table.headers:
@@ -358,13 +388,22 @@ def _table_section_slide(slide, theme: _Theme, section: Section) -> None:
     rows = table.rows[:max_rows]
     n_rows = len(rows) + 1  # +1 for header
 
-    left, top = Inches(0.7), Inches(2.45)
-    width = Inches(11.9)
+    col_widths_in = _table_column_widths(table.headers, rows)
+    total_w_in = sum(col_widths_in)
+    # Centre the table horizontally on the slide for visual balance.
+    left_in = max(0.7, (_SLIDE_WIDTH - total_w_in) / 2.0)
+    left, top = Inches(left_in), Inches(2.45)
+    width = Inches(total_w_in)
     # Cap height so very tall tables don't run off the slide.
     height = Inches(min(0.45 * n_rows, 4.4))
 
     shape = slide.shapes.add_table(n_rows, n_cols, left, top, width, height)
     tbl = shape.table
+
+    # Apply per-column widths so columns adapt to content rather than being
+    # uniformly stretched.
+    for ci, w_in in enumerate(col_widths_in):
+        tbl.columns[ci].width = Inches(w_in)
 
     for ci, header in enumerate(table.headers):
         cell = tbl.cell(0, ci)

@@ -16,6 +16,7 @@ from app.render.pptx_renderer import (
     _IMG_MAX_FRAC,
     _image_box_for_aspect,
     _pick_layout,
+    _table_column_widths,
     _Theme,
     render_outline,
 )
@@ -341,4 +342,57 @@ def test_render_image_section_preserves_aspect_ratio_portrait(tmp_path: Path):
     assert len(pics) == 1
     pic = pics[0]
     assert pic.width / pic.height == pytest.approx(0.5, rel=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# Table content-adaptive width
+# ---------------------------------------------------------------------------
+
+
+def test_table_column_widths_short_content_stays_compact():
+    widths = _table_column_widths(["a", "b"], [["1", "2"], ["3", "4"]])
+    # Two short columns should be near the per-column minimum (0.9").
+    assert all(w == pytest.approx(0.9, rel=1e-6) for w in widths)
+    assert sum(widths) < 3.0
+
+
+def test_table_column_widths_long_content_expands_proportionally():
+    widths = _table_column_widths(
+        ["k", "description"],
+        [["x", "a long descriptive sentence about something"]],
+    )
+    # Second column should be noticeably wider than the first.
+    assert widths[1] > widths[0] * 2
+
+
+def test_table_column_widths_scaled_down_when_total_exceeds_max():
+    # 5 cols × ~5" each would be 25", but max_total is 11.9 → must scale down.
+    widths = _table_column_widths(
+        ["a" * 60] * 5,
+        [["x" * 60] * 5],
+        max_total_in=11.9,
+    )
+    assert sum(widths) == pytest.approx(11.9, rel=1e-6)
+
+
+def test_render_table_section_centres_compact_table_horizontally():
+    doc = OutlineDoc(
+        title="T", language="en",
+        sections=[
+            Section(
+                heading="Tiny",
+                table=TableData(headers=["a", "b"], rows=[["1", "2"]]),
+            )
+        ],
+    )
+    data = render_outline(doc, _template(), uploads_dir=None)
+    prs = pptx.Presentation(io.BytesIO(data))
+    tables = [s for s in prs.slides[1].shapes if s.has_table]
+    assert len(tables) == 1
+    shape = tables[0]
+    # Compact table should be centred (left margin > 0.7 default).
+    left_in = shape.left / 914400  # EMUs per inch
+    width_in = shape.width / 914400
+    # Centred means left + width/2 ≈ slide_w / 2
+    assert (left_in + width_in / 2) == pytest.approx(13.333 / 2, abs=0.05)
 
