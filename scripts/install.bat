@@ -62,14 +62,7 @@ if not defined PY_EXE (
         call :refresh_path
         call :find_python
         if not defined PY_EXE (
-            REM Probe common winget install locations as fallback.
-            for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*" "%ProgramFiles%\Python3*" "%ProgramFiles(x86)%\Python3*") do (
-                if exist "%%~D\python.exe" set "PATH=%%~D;%%~D\Scripts;!PATH!"
-            )
-            call :find_python
-        )
-        if not defined PY_EXE (
-            call :ui_fail "Python 已安装但本会话无法定位；请关闭重开 cmd"
+            call :ui_fail "Python 已安装但本会话无法定位（详见 install.log）"
             call :ui_summary
             pause & exit /b 1
         )
@@ -95,16 +88,10 @@ if errorlevel 1 (
             pause & exit /b 1
         )
         call :refresh_path
+        call :locate_node
         where node >nul 2>nul
         if errorlevel 1 (
-            REM Probe common Node.js install locations as fallback.
-            for %%D in ("%ProgramFiles%\nodejs" "%ProgramFiles(x86)%\nodejs" "%LOCALAPPDATA%\Programs\nodejs") do (
-                if exist "%%~D\node.exe" set "PATH=%%~D;!PATH!"
-            )
-            where node >nul 2>nul
-        )
-        if errorlevel 1 (
-            call :ui_fail "Node.js 已安装但 PATH 未生效；请关闭重开 cmd"
+            call :ui_fail "Node.js 已安装但本会话找不到（已试静态路径+WinGet/Packages+Program Files 递归，详见 install.log）"
             call :ui_summary
             pause & exit /b 1
         )
@@ -128,15 +115,10 @@ if errorlevel 1 (
             call :ui_ok_warn "winget 安装 Git 失败（如源码已在本地可忽略）"
         ) else (
             call :refresh_path
+            call :locate_git
             where git >nul 2>nul
             if errorlevel 1 (
-                for %%D in ("%ProgramFiles%\Git\cmd" "%ProgramFiles(x86)%\Git\cmd" "%LOCALAPPDATA%\Programs\Git\cmd") do (
-                    if exist "%%~D\git.exe" set "PATH=%%~D;!PATH!"
-                )
-                where git >nul 2>nul
-            )
-            if errorlevel 1 (
-                call :ui_ok_warn "Git 已安装但当前窗口 PATH 未生效"
+                call :ui_ok_warn "Git 已安装但当前窗口找不到（试过静态路径与递归）"
             ) else (
                 call :ui_ok
             )
@@ -160,15 +142,10 @@ if errorlevel 1 (
             call :ui_ok_warn "winget 安装 Ollama 失败（M2 后才需要 LLM）"
         ) else (
             call :refresh_path
+            call :locate_ollama
             where ollama >nul 2>nul
             if errorlevel 1 (
-                for %%D in ("%LOCALAPPDATA%\Programs\Ollama" "%ProgramFiles%\Ollama") do (
-                    if exist "%%~D\ollama.exe" set "PATH=%%~D;!PATH!"
-                )
-                where ollama >nul 2>nul
-            )
-            if errorlevel 1 (
-                call :ui_ok_warn "Ollama 已安装但 PATH 未生效"
+                call :ui_ok_warn "Ollama 已安装但当前窗口找不到（试过静态路径与递归）"
             ) else (
                 call :ui_ok
             )
@@ -468,6 +445,95 @@ if defined _NEWPATH (
 )
 exit /b 0
 
+REM ====================== locate: tools that may not be on PATH after winget ======================
+REM Each :locate_<tool> probes well-known install paths AND falls back to a
+REM recursive search under WinGet's package storage / Program Files. On
+REM success it prepends the directory to PATH. Caller does
+REM   call :locate_<tool>
+REM   where <tool> >nul 2>nul
+REM and decides what to do based on errorlevel.
+REM
+REM All hits are logged to %LOG% (if defined) so we can diagnose silent
+REM mismatches without forcing the user to share their PATH.
+
+:locate_node
+where node >nul 2>nul && exit /b 0
+if defined LOG echo [LOCATE-NODE %TIME%] starting probe >> "%LOG%"
+for %%D in (
+    "%ProgramFiles%\nodejs"
+    "%ProgramFiles(x86)%\nodejs"
+    "%LOCALAPPDATA%\Programs\nodejs"
+    "%LOCALAPPDATA%\Microsoft\WinGet\Links"
+) do (
+    if exist "%%~D\node.exe" (
+        if defined LOG echo [LOCATE-NODE]   static hit: %%~D >> "%LOG%"
+        set "PATH=%%~D;!PATH!"
+    )
+)
+where node >nul 2>nul && exit /b 0
+call :_recursive_locate node.exe
+exit /b 0
+
+:locate_git
+where git >nul 2>nul && exit /b 0
+if defined LOG echo [LOCATE-GIT %TIME%] starting probe >> "%LOG%"
+for %%D in (
+    "%ProgramFiles%\Git\cmd"
+    "%ProgramFiles(x86)%\Git\cmd"
+    "%LOCALAPPDATA%\Programs\Git\cmd"
+    "%LOCALAPPDATA%\Microsoft\WinGet\Links"
+) do (
+    if exist "%%~D\git.exe" (
+        if defined LOG echo [LOCATE-GIT]   static hit: %%~D >> "%LOG%"
+        set "PATH=%%~D;!PATH!"
+    )
+)
+where git >nul 2>nul && exit /b 0
+call :_recursive_locate git.exe
+exit /b 0
+
+:locate_ollama
+where ollama >nul 2>nul && exit /b 0
+if defined LOG echo [LOCATE-OLLAMA %TIME%] starting probe >> "%LOG%"
+for %%D in (
+    "%LOCALAPPDATA%\Programs\Ollama"
+    "%ProgramFiles%\Ollama"
+    "%LOCALAPPDATA%\Microsoft\WinGet\Links"
+) do (
+    if exist "%%~D\ollama.exe" (
+        if defined LOG echo [LOCATE-OLLAMA]   static hit: %%~D >> "%LOG%"
+        set "PATH=%%~D;!PATH!"
+    )
+)
+where ollama >nul 2>nul && exit /b 0
+call :_recursive_locate ollama.exe
+exit /b 0
+
+REM Best-effort recursive search for an exe under WinGet's storage and
+REM Program Files. Slow but bulletproof — only invoked when static probes fail.
+:_recursive_locate
+set "_LOC_EXE=%~1"
+for %%R in (
+    "%LOCALAPPDATA%\Microsoft\WinGet\Packages"
+    "%ProgramFiles%\WinGet\Packages"
+    "%ProgramFiles%"
+    "%ProgramFiles(x86)%"
+    "%LOCALAPPDATA%\Programs"
+) do (
+    if exist "%%~R" (
+        for /f "delims=" %%F in ('where /R "%%~R" "!_LOC_EXE!" 2^>nul') do (
+            if not defined _LOC_HIT (
+                set "_LOC_HIT=%%F"
+                if defined LOG echo [LOCATE]   recursive hit: %%F >> "%LOG%"
+                for %%P in ("%%F") do set "PATH=%%~dpP;!PATH!"
+            )
+        )
+    )
+)
+set "_LOC_EXE="
+set "_LOC_HIT="
+exit /b 0
+
 REM ====================== system: find real Python ======================
 :find_python
 set "PY_EXE="
@@ -485,6 +551,27 @@ if not errorlevel 1 (
 if defined PY_EXE exit /b 0
 for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
     if exist "%%D\python.exe" if not defined PY_EXE set "PY_EXE=%%D\python.exe"
+)
+if defined PY_EXE exit /b 0
+REM Last resort: scan WinGet packages and Program Files trees.
+if defined LOG echo [LOCATE-PYTHON %TIME%] starting recursive probe >> "%LOG%"
+for %%R in (
+    "%LOCALAPPDATA%\Microsoft\WinGet\Packages"
+    "%ProgramFiles%\Python311"
+    "%ProgramFiles%\Python312"
+    "%ProgramFiles%\Python313"
+) do (
+    if exist "%%~R" (
+        for /f "delims=" %%F in ('where /R "%%~R" python.exe 2^>nul') do (
+            if not defined PY_EXE (
+                call :_is_real_python "%%F" _IS_REAL
+                if "!_IS_REAL!"=="1" (
+                    set "PY_EXE=%%F"
+                    if defined LOG echo [LOCATE-PYTHON]   recursive hit: %%F >> "%LOG%"
+                )
+            )
+        )
+    )
 )
 exit /b 0
 
