@@ -60,8 +60,15 @@ def generate_pptx(req: GenerateRequest) -> Response:
 
     t0 = time.perf_counter()
     try:
-        uploads_dir = get_settings().workspace_dir / "uploads"
-        data = render_outline(req.outline, template, uploads_dir=uploads_dir)
+        settings = get_settings()
+        uploads_dir = settings.workspace_dir / "uploads"
+        master_path = settings.templates_dir / template.name / "master.pptx"
+        if not master_path.is_file():
+            master_path = None
+        data = render_outline(
+            req.outline, template,
+            uploads_dir=uploads_dir, master_path=master_path,
+        )
     except Exception as exc:  # noqa: BLE001 — surface as 500 with detail
         log.exception("render failed")
         raise HTTPException(status_code=500, detail=f"render failed: {exc}") from exc

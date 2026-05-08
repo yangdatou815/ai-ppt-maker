@@ -396,3 +396,45 @@ def test_render_table_section_centres_compact_table_horizontally():
     # Centred means left + width/2 ≈ slide_w / 2
     assert (left_in + width_in / 2) == pytest.approx(13.333 / 2, abs=0.05)
 
+
+# --- M3-1 phase 2: master.pptx loading -------------------------------------
+
+_MASTERS_ROOT = Path(__file__).resolve().parents[2] / "templates"
+
+
+def _expected_slide_count(n_sections: int) -> int:
+    # cover + N section slides + closing
+    return 1 + n_sections + 1
+
+
+def test_render_with_master_strips_sample_slides_and_keeps_user_slides():
+    master = _MASTERS_ROOT / "tech-blue" / "master.pptx"
+    assert master.is_file(), f"missing fixture: {master}"
+    n = 3
+    data = render_outline(_doc(n), _template(), master_path=master)
+    prs = pptx.Presentation(io.BytesIO(data))
+    # The master ships 7 sample slides; output must contain only the user's.
+    assert len(prs.slides) == _expected_slide_count(n)
+
+
+def test_render_without_master_path_matches_blank_baseline():
+    # Default behaviour (no master_path) must remain identical to before.
+    data = render_outline(_doc(2), _template())
+    prs = pptx.Presentation(io.BytesIO(data))
+    assert len(prs.slides) == _expected_slide_count(2)
+
+
+def test_render_with_missing_master_path_falls_back_silently(tmp_path):
+    bogus = tmp_path / "does-not-exist.pptx"
+    data = render_outline(_doc(1), _template(), master_path=bogus)
+    prs = pptx.Presentation(io.BytesIO(data))
+    assert len(prs.slides) == _expected_slide_count(1)
+
+
+def test_render_with_corrupt_master_falls_back_silently(tmp_path):
+    bad = tmp_path / "corrupt.pptx"
+    bad.write_bytes(b"this is not a valid pptx zip")
+    data = render_outline(_doc(1), _template(), master_path=bad)
+    prs = pptx.Presentation(io.BytesIO(data))
+    assert len(prs.slides) == _expected_slide_count(1)
+

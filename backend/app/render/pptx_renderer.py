@@ -20,6 +20,7 @@ fall back to a sensible default rather than crashing the request.
 """
 from __future__ import annotations
 
+import contextlib
 import io
 import logging
 import re
@@ -505,23 +506,59 @@ def _closing_slide(prs: Presentation, theme: _Theme, doc: OutlineDoc) -> None:
     )
 
 
+def _strip_existing_slides(prs: Presentation) -> int:
+    """Remove every slide already in ``prs`` (used to clean a master.pptx
+    starter deck before we add the user's slides). Returns count removed."""
+    sld_id_lst = prs.slides._sldIdLst
+    rids = [s.rId for s in list(sld_id_lst)]
+    for sld_id in list(sld_id_lst):
+        sld_id_lst.remove(sld_id)
+    for rid in rids:
+        with contextlib.suppress(KeyError):
+            prs.part.drop_rel(rid)
+    return len(rids)
+
+
 def render_outline(
     doc: OutlineDoc,
     template: TemplateInfo,
     *,
     uploads_dir: Path | None = None,
+    master_path: Path | None = None,
 ) -> bytes:
     """Build a .pptx for ``doc`` styled by ``template``; return the file bytes.
 
     ``uploads_dir`` is the directory where ``ImageRef.file_id`` resolves to a
     file on disk. ``None`` (the default) makes every image render as a
     placeholder rectangle — handy for tests and outline-only previews.
+
+    ``master_path`` points at the template's ``master.pptx`` starter deck.
+    When supplied (and the file is readable as a valid pptx), the renderer
+    loads that file as the base ``Presentation`` so the output inherits the
+    master's slide masters, slide layouts, theme XML and font scheme. Any
+    sample slides authored in the master are stripped before the user's
+    slides are added. ``None`` or unreadable falls back to a blank
+    ``Presentation()`` exactly like before — keeps the renderer robust for
+    tests and for templates that ship without a master.
     """
     theme = _Theme.from_template(template)
 
-    prs = Presentation()
-    prs.slide_width = _SLIDE_W
-    prs.slide_height = _SLIDE_H
+    prs: Presentation | None = None
+    if master_path is not None and master_path.is_file():
+        try:
+            prs = Presentation(str(master_path))
+            stripped = _strip_existing_slides(prs)
+            log.info(
+                "render: loaded master=%s stripped_sample_slides=%d",
+                master_path.name, stripped,
+            )
+        except Exception as exc:  # noqa: BLE001 — degrade, don't fail the request
+            log.warning("master.pptx load failed (%s); falling back to blank", exc)
+            prs = None
+    if prs is None:
+        prs = Presentation()
+        prs.slide_width = _SLIDE_W
+        prs.slide_height = _SLIDE_H
 
     _cover_slide(prs, theme, doc)
     total = len(doc.sections)
