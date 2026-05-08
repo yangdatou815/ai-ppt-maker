@@ -10,6 +10,101 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-08
+
+M2 part 3 — image/table layouts + editorial UI redesign.
+M2 milestone closes here.
+
+### Added
+- **M2-3 — image / table layout dispatch in the renderer.**
+  - `backend/app/render/pptx_renderer.py`: `_pick_layout(section)` picks
+    one of `content-bullets` / `content-image` / `content-table`. Explicit
+    `section.layout_hint` wins; otherwise we infer from which payload is
+    populated (`image` → image, `table` → table, else bullets). Mismatched
+    hints (e.g. `content-table` with no `table`) degrade to bullets
+    instead of raising.
+  - `_image_section_slide`: bullets on the left half (5.6"), embedded image
+    on the right (5.9 × 4.0"). When the file is missing, unreadable, or
+    fails python-pptx's image probe, falls back to a placeholder rectangle
+    with the caption / file_id rendered centred — never aborts the slide.
+  - `_table_section_slide`: native pptx table with themed header row
+    (filled `theme.primary`, bold `theme.heading_font` in `theme.text`),
+    body rows in `theme.body_font` `theme.primary`. Caps at 14 data rows
+    and emits a `… N more rows truncated` note.
+  - `render_outline()` gains a kw-only `uploads_dir: Path | None`. `None`
+    keeps the old behaviour (every image renders as a placeholder), so
+    existing tests / outline-only previews don't break.
+  - **Path-traversal guard**: image file_id resolution rejects anything
+    that doesn't `relative_to(uploads_dir)`. A malicious outline carrying
+    `file_id: "../../etc/passwd"` cannot exfiltrate or embed files outside
+    the workspace.
+- **`POST /api/upload` — image upload for slide embed.**
+  - `backend/app/api/upload.py`: streams the upload in 1 MiB chunks and
+    enforces `Settings.max_upload_mb` *during* the read so an oversized
+    body never lands fully in memory before being rejected.
+  - Whitelisted MIME types: `image/png`, `image/jpeg`, `image/gif`,
+    `image/webp`. SVG / TIFF deliberately excluded (would need
+    server-side rasterisation we don't run).
+  - Stored as `<workspace_dir>/uploads/<uuid><ext>`; returns
+    `{ file_id, bytes, content_type }`. Empty body → `400`, oversized →
+    `413`, unsupported type → `415`.
+  - Tests: 4 new integration cases (`tests/integration/test_upload_api.py`).
+- **Frontend M2-3 — per-section image/table attachments.**
+  - `frontend/src/api/client.ts`: tightens `OutlineSection.image` /
+    `.table` types from `unknown` to typed `ImageRef` / `TableData`; new
+    `uploadImage(file)` helper (multipart POST) and
+    `parseTableInput(text, caption?)` (TSV with comma fallback, first
+    non-blank line as headers, blanks stripped).
+  - `frontend/src/components/OutlineForm.vue`: every section in the result
+    preview now exposes `+ 添加图片` (file picker → `/api/upload` →
+    attaches `ImageRef` and sets `layout_hint = 'content-image'`) and
+    `+ 添加表格` (modal editor parses pasted TSV/CSV → attaches
+    `TableData` and sets `layout_hint = 'content-table'`). Existing
+    attachments shown as chips with edit / remove links.
+  - 5 new vitest cases on `parseTableInput` + 2 new component cases on
+    image-upload and table-edit flows. 18 frontend tests pass total.
+- **Renderer test suite expanded.** 7 new unit tests in
+  `tests/unit/test_pptx_renderer.py`: `_pick_layout` dispatch (×3), table
+  rendering with native pptx table shape (×2), image happy path with a
+  hand-rolled minimal-PNG fixture, missing-file placeholder, path-
+  traversal rejection. 59 backend tests pass total, 92 % coverage, ruff
+  clean.
+
+### Changed
+- **Editorial / artistic-minimal frontend redesign.** `frontend/src/styles.css`
+  rewritten end-to-end. No template / component logic touched — only
+  CSS — so existing tests continue to pass.
+  - System-font-only stack (offline-friendly): native serif italic for
+    display (Iowan / Baskerville / Times / Georgia + CJK fallback), Inter /
+    system-ui for UI text, ui-monospace for tracked uppercase micro-labels.
+  - Mono palette: warm off-white paper (`#f6f4ee`) + ink (`#111`). State
+    signals (ok / warn / err) in deep, muted tones; no decorative colour.
+  - No rounded corners (`border-radius: 0` throughout), no shadows, no
+    gradients. Hierarchy via hairline 1 px rules at
+    `rgba(17,17,17,0.12)` and generous whitespace (96–128 px between
+    major sections).
+  - Outline-preview section numbers now rendered as 48 px italic serif
+    numerals bleeding into a 96 px left gutter (chapter marks, not UI
+    bullets). Bullets themselves use em-dash markers; emphasis bullets
+    get a black dash, mute ones grey.
+  - Buttons reframed as flat blocks with mono uppercase tracked labels;
+    hover inverts (paper-on-ink → ink-on-paper). Selected template card
+    flips to ink background with paper text — full inversion rather than a
+    coloured ring.
+
+### Security
+- Image embed path traversal closed (see M2-3 above): outlines cannot
+  escape `uploads_dir`. Negative test in
+  `test_render_image_section_rejects_path_traversal`.
+- Upload size cap enforced *during* stream read, not after — prevents an
+  attacker from DoS-ing memory by sending a multi-GB body that we'd then
+  reject post-buffer.
+
+## [0.3.0] — 2026-05-07
+
+M2 part 2 — render → editable .pptx download. Bridges the outline
+pipeline to the user's hard drive.
+
 ### Fixed
 - **CI silent dependency on `eval_type_backport`.** Pydantic v2 evaluates
   PEP 604 union annotations (`str | None`) at class-build time, which on
