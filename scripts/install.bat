@@ -232,7 +232,7 @@ if exist "%~dp0..\backend\pyproject.toml" (
         )
         call :ui_info "git clone 到 !PROJ_DIR! ..."
         for %%D in ("!PROJ_DIR!") do if not exist "%%~dpD" md "%%~dpD"
-        if not defined APM_REPO_URL set "APM_REPO_URL=https://example.com/REPLACE_ME/ai-ppt-maker.git"
+        if not defined APM_REPO_URL set "APM_REPO_URL=https://gitee.com/yangdatou815/ai-ppt-maker.git"
         git clone "!APM_REPO_URL!" "!PROJ_DIR!" >> "%LOG%" 2>&1
         if errorlevel 1 (
             call :ui_fail "git clone 失败，详见 %LOG%（请设置 APM_REPO_URL 指向你的远端仓库）"
