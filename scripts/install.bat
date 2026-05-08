@@ -259,11 +259,37 @@ if errorlevel 1 (
 )
 call :ui_ok "deploy.bat 完成"
 
+REM --- 7. 创建带专业图标的桌面 / 仓库快捷方式 ---
+call :ui_step "创建桌面与仓库快捷方式"
+set "_ICO=!PROJ_DIR!\assets\app.ico"
+if not exist "!_ICO!" set "_ICO="
+set "_START=!PROJ_DIR!\scripts\start.bat"
+set "_INSTALL=!PROJ_DIR!\scripts\install.bat"
+set "_SC_OK=0"
+if exist "!_START!" (
+    call :make_shortcut "!PROJ_DIR!\AI PPT Maker.lnk" "!_START!" "" "!_ICO!" "Launch AI PPT Maker"
+    if not errorlevel 1 set /a _SC_OK+=1
+    set "_DESK=%USERPROFILE%\Desktop"
+    if exist "!_DESK!" (
+        call :make_shortcut "!_DESK!\AI PPT Maker.lnk" "!_START!" "" "!_ICO!" "Launch AI PPT Maker"
+        if not errorlevel 1 set /a _SC_OK+=1
+    )
+)
+if exist "!_INSTALL!" (
+    call :make_shortcut "!PROJ_DIR!\Install AI PPT Maker.lnk" "!_INSTALL!" "" "!_ICO!" "Re-run AI PPT Maker installer"
+    if not errorlevel 1 set /a _SC_OK+=1
+)
+if !_SC_OK! GTR 0 (
+    call :ui_ok "已创建 !_SC_OK! 个快捷方式"
+) else (
+    call :ui_ok_warn "快捷方式创建失败（不影响使用，详见 %LOG%）"
+)
+
 call :ui_summary
 
 echo.
 echo 项目位置: !PROJ_DIR!
-echo 日常启动: 双击 !PROJ_DIR!\scripts\start.bat
+echo 日常启动: 双击桌面 "AI PPT Maker" 快捷方式 ^(或 !PROJ_DIR!\scripts\start.bat^)
 echo 安装日志: %LOG%
 echo.
 
@@ -689,6 +715,37 @@ if not errorlevel 1 (
     for %%F in ("%~1") do if %%~zF LEQ 1024 exit /b 0
 )
 set "%~2=1"
+exit /b 0
+
+REM ====================== create Windows shortcut (.lnk) ======================
+REM Usage:  call :make_shortcut "<lnk path>" "<target>" "<args>" "<icon path>" "<description>"
+REM   - <args> may be empty ""
+REM   - <icon path> may be empty "" (uses target's default icon)
+REM Sets workdir = parent dir of <target>. Returns errorlevel 0 / 1.
+:make_shortcut
+where powershell >nul 2>nul
+if errorlevel 1 (
+    if defined LOG echo [SHORTCUT] no powershell available >> "%LOG%"
+    exit /b 1
+)
+set "_LNK=%~1"
+set "_TGT=%~2"
+set "_ARG=%~3"
+set "_ICO=%~4"
+set "_DSC=%~5"
+if not exist "%_TGT%" (
+    if defined LOG echo [SHORTCUT] target missing: %_TGT% >> "%LOG%"
+    exit /b 1
+)
+for %%P in ("%_TGT%") do set "_WD=%%~dpP"
+if "%_WD:~-1%"=="\" set "_WD=%_WD:~0,-1%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%_LNK%'); $s.TargetPath = '%_TGT%'; $s.Arguments = '%_ARG%'; $s.WorkingDirectory = '%_WD%'; if ('%_ICO%' -ne '') { $s.IconLocation = '%_ICO%' }; $s.Description = '%_DSC%'; $s.Save()" >> "%LOG%" 2>&1
+if not exist "%_LNK%" (
+    if defined LOG echo [SHORTCUT] failed to create: %_LNK% >> "%LOG%"
+    exit /b 1
+)
+if defined LOG echo [SHORTCUT] created: %_LNK% -^> %_TGT% >> "%LOG%"
 exit /b 0
 
 REM ============================================================

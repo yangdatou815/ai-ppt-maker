@@ -407,6 +407,37 @@ if not errorlevel 1 (
 set "%~2=1"
 exit /b 0
 
+REM ====================== create Windows shortcut (.lnk) ======================
+REM Usage:  call :make_shortcut "<lnk path>" "<target>" "<args>" "<icon path>" "<description>"
+REM   - <args> may be empty ""
+REM   - <icon path> may be empty "" (uses target's default icon)
+REM Sets workdir = parent dir of <target>. Returns errorlevel 0 / 1.
+:make_shortcut
+where powershell >nul 2>nul
+if errorlevel 1 (
+    if defined LOG echo [SHORTCUT] no powershell available >> "%LOG%"
+    exit /b 1
+)
+set "_LNK=%~1"
+set "_TGT=%~2"
+set "_ARG=%~3"
+set "_ICO=%~4"
+set "_DSC=%~5"
+if not exist "%_TGT%" (
+    if defined LOG echo [SHORTCUT] target missing: %_TGT% >> "%LOG%"
+    exit /b 1
+)
+for %%P in ("%_TGT%") do set "_WD=%%~dpP"
+if "%_WD:~-1%"=="\" set "_WD=%_WD:~0,-1%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%_LNK%'); $s.TargetPath = '%_TGT%'; $s.Arguments = '%_ARG%'; $s.WorkingDirectory = '%_WD%'; if ('%_ICO%' -ne '') { $s.IconLocation = '%_ICO%' }; $s.Description = '%_DSC%'; $s.Save()" >> "%LOG%" 2>&1
+if not exist "%_LNK%" (
+    if defined LOG echo [SHORTCUT] failed to create: %_LNK% >> "%LOG%"
+    exit /b 1
+)
+if defined LOG echo [SHORTCUT] created: %_LNK% -^> %_TGT% >> "%LOG%"
+exit /b 0
+
 REM ============================================================
 REM 加载完成标签 —— 被 call 时从 goto :_common_loaded 跳到此处
 REM ============================================================
