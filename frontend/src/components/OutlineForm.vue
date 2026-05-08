@@ -50,11 +50,14 @@ const elapsedDisplay = computed(() => {
   return ''
 })
 
-// Asymptotic progress (0..100). Approaches 95 % over ~12 s, never reaches
-// 100 % until the request completes — at which point we snap to 100.
-const PROGRESS_TAU_MS = 4000
-function _asymptotic(elapsedMs: number): number {
-  return 95 * (1 - Math.exp(-elapsedMs / PROGRESS_TAU_MS))
+// Linear progress with a 95 % soft cap. The bar moves at a constant rate
+// proportional to the expected duration, then holds at 95 % until the request
+// actually completes (we snap to 100 % on success). This avoids the previous
+// "fast at the start, dies at 95 %" feel of pure exponential easing.
+const OUTLINE_EXPECTED_MS = 15000  // qwen2.5:7b on CPU is roughly this slow
+const GENERATE_EXPECTED_MS = 3000  // python-pptx render is fast
+function _linearCapped(elapsedMs: number, expectedMs: number): number {
+  return Math.min(95, (elapsedMs / expectedMs) * 95)
 }
 const outlineProgress = ref(0)
 function _refreshOutlineProgress() {
@@ -62,7 +65,7 @@ function _refreshOutlineProgress() {
     outlineProgress.value = result.value ? 100 : 0
     return
   }
-  outlineProgress.value = _asymptotic(tickMs.value)
+  outlineProgress.value = _linearCapped(tickMs.value, OUTLINE_EXPECTED_MS)
 }
 
 function startTicker() {
@@ -131,7 +134,7 @@ async function generate() {
   generateProgress.value = 0
   const genStart = performance.now()
   genTickHandle = setInterval(() => {
-    generateProgress.value = _asymptotic(performance.now() - genStart)
+    generateProgress.value = _linearCapped(performance.now() - genStart, GENERATE_EXPECTED_MS)
   }, 100)
   try {
     const r = await generatePptx({
