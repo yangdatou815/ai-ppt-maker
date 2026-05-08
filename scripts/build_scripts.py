@@ -1,6 +1,6 @@
 """scripts/build_scripts.py — 构建 install.bat / deploy.bat 单文件。
 
-组合 *.tmpl 模板 + scripts/_common.bat 生成顶层 install.bat 和 scripts/deploy.bat。
+组合 *.tmpl 模板 + scripts/_common.bat 生成 scripts/install.bat、scripts/deploy.bat、scripts/cleanup.bat。
 
 CI: `python scripts/build_scripts.py --check` 校验同步。
 """
@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 COMMON = ROOT / "scripts" / "_common.bat"
 
 TARGETS: list[tuple[Path, Path, str]] = [
-    (ROOT / "scripts" / "install.bat.tmpl", ROOT / "install.bat", "_common_inlined"),
+    (ROOT / "scripts" / "install.bat.tmpl", ROOT / "scripts" / "install.bat", "_common_inlined"),
     (ROOT / "scripts" / "deploy.bat.tmpl",  ROOT / "scripts" / "deploy.bat", "_common_inlined"),
     (ROOT / "scripts" / "cleanup.bat.tmpl", ROOT / "scripts" / "cleanup.bat", "_common_inlined"),
 ]

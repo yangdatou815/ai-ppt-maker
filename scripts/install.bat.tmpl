@@ -153,11 +153,22 @@ if errorlevel 1 (
 )
 
 REM --- 5. 获取/定位源码 ---
+REM     install.bat 现住在 scripts\ 下，所以两种合法位置都要支持：
+REM       1) %~dp0           = ...\repo\scripts\   →  PROJ_DIR = %~dp0..
+REM       2) %~dp0           = ...\repo\           →  PROJ_DIR = %~dp0
+REM          （用户把 install.bat 单独下到任意空目录的旧用法）
 call :ui_step "准备项目源码"
-if exist "%~dp0backend\pyproject.toml" (
+set PROJ_DIR=
+if exist "%~dp0..\backend\pyproject.toml" (
+    REM scripts\install.bat 模式：父目录就是项目根
+    pushd "%~dp0.."
+    set PROJ_DIR=!CD!
+    popd
+    call :ui_info "scripts/ 模式，项目根: !PROJ_DIR!"
+) else if exist "%~dp0backend\pyproject.toml" (
     set PROJ_DIR=%~dp0
     if "!PROJ_DIR:~-1!"=="\" set PROJ_DIR=!PROJ_DIR:~0,-1!
-    call :ui_info "当前目录已是项目: !PROJ_DIR!"
+    call :ui_info "脚本同目录即项目根: !PROJ_DIR!"
 ) else (
     if defined APM_INSTALL_DIR (
         set PROJ_DIR=!APM_INSTALL_DIR!

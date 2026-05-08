@@ -8,13 +8,15 @@
 
 ### A. Windows 一键安装（零基础推荐）
 
-下载 `install.bat`（仓库根目录），双击运行：
+下载 `scripts\install.bat`（仓库 `scripts/` 目录下），双击运行：
 
 ```
-install.bat
+scripts\install.bat
 ```
 
-它会用 winget 自动装 Python 3.11 / Node.js LTS / Git / Ollama，git clone 项目，调用 `scripts/deploy.bat` 完成 venv + 前端构建 + 拉模型，最后自动启动。安装日志写到 `install.log`。
+它会用 winget 自动装 Python 3.11 / Node.js LTS / Git / Ollama，git clone 项目，调用 `scripts/deploy.bat` 完成 venv + 前端构建 + 拉模型，最后自动启动。安装日志写到脚本同目录下的 `install.log`。
+
+> 提示：脚本兼容两种用法 —— ① 在 git clone 后双击 `scripts\install.bat` 直接复用本地源码；② 单独把这个文件下到任意空目录双击，它会自动 `git clone` 到 `%USERPROFILE%\ai-ppt-maker`。
 
 环境变量可定制：
 
@@ -66,7 +68,7 @@ docker compose up --build
 
 ## 开发规范（DoD）
 
-提交前必须本地通过 `bash scripts/dod.sh` —— 与 CI 同源命令。CI 还会跑 `python scripts/build_scripts.py --check` 校验 `install.bat` / `scripts/deploy.bat` / `scripts/cleanup.bat` 与模板源同步。
+提交前必须本地通过 `bash scripts/dod.sh` —— 与 CI 同源命令。CI 还会跑 `python scripts/build_scripts.py --check` 校验 `scripts/install.bat` / `scripts/deploy.bat` / `scripts/cleanup.bat` 与模板源同步。
 
 ## 持续集成
 
