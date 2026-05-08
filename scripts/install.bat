@@ -62,6 +62,13 @@ if not defined PY_EXE (
         call :refresh_path
         call :find_python
         if not defined PY_EXE (
+            REM Probe common winget install locations as fallback.
+            for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*" "%ProgramFiles%\Python3*" "%ProgramFiles(x86)%\Python3*") do (
+                if exist "%%~D\python.exe" set "PATH=%%~D;%%~D\Scripts;!PATH!"
+            )
+            call :find_python
+        )
+        if not defined PY_EXE (
             call :ui_fail "Python 已安装但本会话无法定位；请关闭重开 cmd"
             call :ui_summary
             pause & exit /b 1
@@ -90,6 +97,13 @@ if errorlevel 1 (
         call :refresh_path
         where node >nul 2>nul
         if errorlevel 1 (
+            REM Probe common Node.js install locations as fallback.
+            for %%D in ("%ProgramFiles%\nodejs" "%ProgramFiles(x86)%\nodejs" "%LOCALAPPDATA%\Programs\nodejs") do (
+                if exist "%%~D\node.exe" set "PATH=%%~D;!PATH!"
+            )
+            where node >nul 2>nul
+        )
+        if errorlevel 1 (
             call :ui_fail "Node.js 已安装但 PATH 未生效；请关闭重开 cmd"
             call :ui_summary
             pause & exit /b 1
@@ -116,6 +130,12 @@ if errorlevel 1 (
             call :refresh_path
             where git >nul 2>nul
             if errorlevel 1 (
+                for %%D in ("%ProgramFiles%\Git\cmd" "%ProgramFiles(x86)%\Git\cmd" "%LOCALAPPDATA%\Programs\Git\cmd") do (
+                    if exist "%%~D\git.exe" set "PATH=%%~D;!PATH!"
+                )
+                where git >nul 2>nul
+            )
+            if errorlevel 1 (
                 call :ui_ok_warn "Git 已安装但当前窗口 PATH 未生效"
             ) else (
                 call :ui_ok
@@ -141,6 +161,12 @@ if errorlevel 1 (
         ) else (
             call :refresh_path
             where ollama >nul 2>nul
+            if errorlevel 1 (
+                for %%D in ("%LOCALAPPDATA%\Programs\Ollama" "%ProgramFiles%\Ollama") do (
+                    if exist "%%~D\ollama.exe" set "PATH=%%~D;!PATH!"
+                )
+                where ollama >nul 2>nul
+            )
             if errorlevel 1 (
                 call :ui_ok_warn "Ollama 已安装但 PATH 未生效"
             ) else (
@@ -286,6 +312,30 @@ set "_UI_TOTAL=%~1"
 set "_UI_CUR=0"
 set "_UI_SUMMARY_FILE=%TEMP%\_ms_summary_%RANDOM%%RANDOM%.txt"
 type nul > "%_UI_SUMMARY_FILE%" 2>nul
+call :_init_colors
+exit /b 0
+
+REM ====================== UI: colors ======================
+REM Captures ANSI ESC into _C_ESC and exposes _C_GREEN / _C_RED / _C_YELLOW /
+REM _C_CYAN / _C_BOLD / _C_RESET. Win10 1607+ conhost renders them; older or
+REM redirected output sees plain text. Set NO_COLOR=1 to disable.
+:_init_colors
+if defined _C_RESET exit /b 0
+set "_C_RESET="
+set "_C_GREEN="
+set "_C_RED="
+set "_C_YELLOW="
+set "_C_CYAN="
+set "_C_BOLD="
+if defined NO_COLOR exit /b 0
+for /f "delims=" %%E in ('"prompt $E$ & for %%a in (1) do rem"') do set "_C_ESC=%%E"
+if not defined _C_ESC exit /b 0
+set "_C_RESET=%_C_ESC%[0m"
+set "_C_GREEN=%_C_ESC%[32m"
+set "_C_RED=%_C_ESC%[31m"
+set "_C_YELLOW=%_C_ESC%[33m"
+set "_C_CYAN=%_C_ESC%[36m"
+set "_C_BOLD=%_C_ESC%[1m"
 exit /b 0
 
 REM ====================== UI: step ======================
@@ -317,9 +367,9 @@ REM ====================== UI: ok ======================
 REM %~1 = optional note
 call :_ui_elapsed
 if "%~1"=="" (
-    echo    [OK] done ^(!_UI_ELAPSED!s^)
+    echo    !_C_GREEN![OK]!_C_RESET! done ^(!_UI_ELAPSED!s^)
 ) else (
-    echo    [OK] %~1 ^(!_UI_ELAPSED!s^)
+    echo    !_C_GREEN![OK]!_C_RESET! %~1 ^(!_UI_ELAPSED!s^)
 )
 echo OK^|%_UI_CUR_LABEL%^|!_UI_ELAPSED! >> "%_UI_SUMMARY_FILE%"
 if defined LOG echo [OK %TIME%] %_UI_CUR_LABEL% took !_UI_ELAPSED!s >> "%LOG%"
@@ -327,14 +377,14 @@ exit /b 0
 
 REM ====================== UI: warn ======================
 :ui_warn
-echo    [!!] %~1
+echo    !_C_YELLOW![!!]!_C_RESET! %~1
 if defined LOG echo [WARN %TIME%] %~1 >> "%LOG%"
 exit /b 0
 
 REM ====================== UI: ok with warn ======================
 :ui_ok_warn
 call :_ui_elapsed
-echo    [!!] %~1 ^(!_UI_ELAPSED!s^)
+echo    !_C_YELLOW![!!]!_C_RESET! %~1 ^(!_UI_ELAPSED!s^)
 echo WARN^|%_UI_CUR_LABEL%^|!_UI_ELAPSED! >> "%_UI_SUMMARY_FILE%"
 if defined LOG echo [WARN-OK %TIME%] %_UI_CUR_LABEL% took !_UI_ELAPSED!s >> "%LOG%"
 exit /b 0
@@ -342,14 +392,14 @@ exit /b 0
 REM ====================== UI: fail ======================
 :ui_fail
 call :_ui_elapsed
-echo    [X] %~1 ^(!_UI_ELAPSED!s^)
+echo    !_C_RED![X]!_C_RESET! %~1 ^(!_UI_ELAPSED!s^)
 echo FAIL^|%_UI_CUR_LABEL%^|!_UI_ELAPSED! >> "%_UI_SUMMARY_FILE%"
 if defined LOG echo [FAIL %TIME%] %_UI_CUR_LABEL% ^(%~1^) took !_UI_ELAPSED!s >> "%LOG%"
 exit /b 0
 
 REM ====================== UI: info ======================
 :ui_info
-echo    [i] %~1
+echo    !_C_CYAN![i]!_C_RESET! %~1
 if defined LOG echo [INFO %TIME%] %~1 >> "%LOG%"
 exit /b 0
 
@@ -363,22 +413,22 @@ set "_UI_ANY_FAIL=0"
 set "_UI_ANY_WARN=0"
 if exist "%_UI_SUMMARY_FILE%" (
     for /f "usebackq tokens=1,2,3 delims=|" %%a in ("%_UI_SUMMARY_FILE%") do (
-        if "%%a"=="OK"   echo    [OK] %%b ^(%%cs^)
-        if "%%a"=="WARN" (echo    [!!] %%b ^(%%cs^) & set "_UI_ANY_WARN=1")
-        if "%%a"=="FAIL" (echo    [X]  %%b ^(%%cs^) & set "_UI_ANY_FAIL=1")
+        if "%%a"=="OK"   echo    !_C_GREEN![OK]!_C_RESET! %%b ^(%%cs^)
+        if "%%a"=="WARN" (echo    !_C_YELLOW![!!]!_C_RESET! %%b ^(%%cs^) & set "_UI_ANY_WARN=1")
+        if "%%a"=="FAIL" (echo    !_C_RED![X]!_C_RESET!  %%b ^(%%cs^) & set "_UI_ANY_FAIL=1")
     )
     del "%_UI_SUMMARY_FILE%" >nul 2>nul
 )
 echo.
 if "!_UI_ANY_FAIL!"=="1" (
-    echo [X] 部署存在失败步骤，请查看上方日志
+    echo !_C_RED![X]!_C_RESET! 部署存在失败步骤，请查看上方日志
     exit /b 1
 )
 if "!_UI_ANY_WARN!"=="1" (
-    echo [!!] 部署完成（有警告）
+    echo !_C_YELLOW![!!]!_C_RESET! 部署完成（有警告）
     exit /b 0
 )
-echo [OK] 部署完成，一切就绪
+echo !_C_GREEN![OK]!_C_RESET! 部署完成，一切就绪
 exit /b 0
 
 REM ====================== UI: elapsed helper ======================
