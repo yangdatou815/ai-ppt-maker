@@ -281,7 +281,15 @@ set "_C_YELLOW="
 set "_C_CYAN="
 set "_C_BOLD="
 if defined NO_COLOR exit /b 0
-for /f "delims=" %%E in ('"prompt $E$ & for %%a in (1) do rem"') do set "_C_ESC=%%E"
+REM Persist Virtual-Terminal level so cmd renders ANSI sequences. Idempotent.
+reg add "HKCU\Console" /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>nul
+REM Capture the ESC byte using the well-known prompt-and-rem trick.
+REM Output of `prompt #$E#` (after the dummy for body fires it) is "#<ESC>#".
+REM `for /f "delims=#"` then strips the surrounding '#' and leaves us with
+REM the bare ESC character.
+for /f "delims=#" %%E in ('"prompt #$E# & echo on & for %%a in (1) do rem"') do (
+    if not defined _C_ESC set "_C_ESC=%%E"
+)
 if not defined _C_ESC exit /b 0
 set "_C_RESET=%_C_ESC%[0m"
 set "_C_GREEN=%_C_ESC%[32m"
