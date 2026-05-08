@@ -16,6 +16,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.api.templates import _scan_templates
+from app.config import get_settings
 from app.render.pptx_renderer import render_outline
 from app.schemas.outline import OutlineDoc
 
@@ -59,7 +60,8 @@ def generate_pptx(req: GenerateRequest) -> Response:
 
     t0 = time.perf_counter()
     try:
-        data = render_outline(req.outline, template)
+        uploads_dir = get_settings().workspace_dir / "uploads"
+        data = render_outline(req.outline, template, uploads_dir=uploads_dir)
     except Exception as exc:  # noqa: BLE001 — surface as 500 with detail
         log.exception("render failed")
         raise HTTPException(status_code=500, detail=f"render failed: {exc}") from exc

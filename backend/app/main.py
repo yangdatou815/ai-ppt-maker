@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import generate, jobs, outline, templates
+from app.api import generate, jobs, outline, templates, upload
 from app.config import get_settings
 from app.logging_setup import setup_logging
 
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(templates.router, prefix="/api", tags=["templates"])
     app.include_router(outline.router, prefix="/api", tags=["outline"])
     app.include_router(generate.router, prefix="/api", tags=["generate"])
+    app.include_router(upload.router, prefix="/api", tags=["upload"])
     app.include_router(jobs.router, prefix="/api", tags=["jobs"])
 
     # Serve frontend/dist if it exists (built via `npm run build` or scripts/deploy.*).
