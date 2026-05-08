@@ -54,15 +54,18 @@ if not defined PY_EXE (
     if %HAVE_WINGET%==1 (
         call :ui_info "winget install Python.Python.3.11（若弹出 UAC 请允许）..."
         "%WINGET_EXE%" install -e --id Python.Python.3.11 --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
-        if errorlevel 1 (
-            call :ui_fail "winget 安装 Python 失败，详见 %LOG%"
-            call :ui_summary
-            pause & exit /b 1
-        )
         call :refresh_path
         call :find_python
         if not defined PY_EXE (
-            call :ui_fail "Python 已安装但本会话无法定位（详见 install.log）"
+            call :ui_info "winget 首次未生效，重置 winget 源后重试 ..."
+            "%WINGET_EXE%" source reset --force >> "%LOG%" 2>&1
+            "%WINGET_EXE%" source update >> "%LOG%" 2>&1
+            "%WINGET_EXE%" install -e --id Python.Python.3.11 --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+            call :refresh_path
+            call :find_python
+        )
+        if not defined PY_EXE (
+            call :ui_fail "winget 无法安装 Python（疑似源损坏）。请手动从 https://www.python.org/downloads/ 安装 Python 3.11+ 后重跑本脚本"
             call :ui_summary
             pause & exit /b 1
         )
@@ -82,16 +85,22 @@ if errorlevel 1 (
     if %HAVE_WINGET%==1 (
         call :ui_info "winget install OpenJS.NodeJS.LTS ..."
         "%WINGET_EXE%" install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
-        if errorlevel 1 (
-            call :ui_fail "winget 安装 Node.js 失败，详见 %LOG%"
-            call :ui_summary
-            pause & exit /b 1
-        )
         call :refresh_path
         call :locate_node
         where node >nul 2>nul
         if errorlevel 1 (
-            call :ui_fail "Node.js 已安装但本会话找不到（已试静态路径+WinGet/Packages+Program Files 递归，详见 install.log）"
+            REM winget can return 0 while having silently failed due to source
+            REM corruption (e.g. error 0x8a15000f). Reset the source and retry.
+            call :ui_info "winget 首次未生效，重置 winget 源后重试 ..."
+            "%WINGET_EXE%" source reset --force >> "%LOG%" 2>&1
+            "%WINGET_EXE%" source update >> "%LOG%" 2>&1
+            "%WINGET_EXE%" install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent >> "%LOG%" 2>&1
+            call :refresh_path
+            call :locate_node
+            where node >nul 2>nul
+        )
+        if errorlevel 1 (
+            call :ui_fail "winget 无法安装 Node.js（疑似源损坏）。请手动从 https://nodejs.org 下载 LTS 版安装后重跑本脚本"
             call :ui_summary
             pause & exit /b 1
         )
