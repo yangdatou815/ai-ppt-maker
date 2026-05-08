@@ -298,14 +298,43 @@ if errorlevel 1 (
     exit /b 1
 )
 set "_WG_TMP=%TEMP%\AppInstaller_%RANDOM%.msixbundle"
-if defined LOG echo [INSTALL-WINGET %TIME%] downloading latest msixbundle from GitHub >> "%LOG%"
+set "_WG_URL_FILE=%TEMP%\winget_url_%RANDOM%.txt"
+if defined LOG echo [INSTALL-WINGET %TIME%] querying GitHub for latest release URL >> "%LOG%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $r = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; $u = ($r.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1).browser_download_url; if (-not $u) { throw 'no msixbundle' }; Invoke-WebRequest -Uri $u -OutFile '%_WG_TMP%'" >> "%LOG%" 2>&1
-if not exist "%_WG_TMP%" (
+  "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $r = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; $u = ($r.assets | Where-Object { $_.name -like '*.msixbundle' } | Select-Object -First 1).browser_download_url; if (-not $u) { throw 'no msixbundle' }; Set-Content -Path '%_WG_URL_FILE%' -Value $u -NoNewline" 2>> "%LOG%"
+if not exist "%_WG_URL_FILE%" (
+    if defined LOG echo [INSTALL-WINGET] URL fetch failed >> "%LOG%"
+    exit /b 1
+)
+set "_WG_URL="
+set /p _WG_URL=<"%_WG_URL_FILE%"
+del "%_WG_URL_FILE%" >nul 2>nul
+if not defined _WG_URL (
+    if defined LOG echo [INSTALL-WINGET] empty URL >> "%LOG%"
+    exit /b 1
+)
+if defined LOG echo [INSTALL-WINGET] URL=!_WG_URL! >> "%LOG%"
+REM Download with visible progress. Prefer curl.exe (Win10 1803+, has built-in
+REM progress bar). Fall back to BITS / Invoke-WebRequest in PowerShell.
+set "_WG_DL_OK=0"
+where curl.exe >nul 2>nul
+if not errorlevel 1 (
+    echo     ^>^> downloading via curl ^(showing progress^) ...
+    curl.exe -L --progress-bar -o "%_WG_TMP%" "!_WG_URL!"
+    if exist "%_WG_TMP%" set "_WG_DL_OK=1"
+)
+if "!_WG_DL_OK!"=="0" (
+    echo     ^>^> downloading via PowerShell BITS ^(showing progress^) ...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+      "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { Import-Module BitsTransfer -ErrorAction Stop; Start-BitsTransfer -Source '!_WG_URL!' -Destination '%_WG_TMP%' -Description 'winget' } catch { Write-Host 'BITS unavailable, using Invoke-WebRequest'; Invoke-WebRequest -Uri '!_WG_URL!' -OutFile '%_WG_TMP%' }"
+    if exist "%_WG_TMP%" set "_WG_DL_OK=1"
+)
+if "!_WG_DL_OK!"=="0" (
     if defined LOG echo [INSTALL-WINGET] download failed >> "%LOG%"
     exit /b 1
 )
-if defined LOG echo [INSTALL-WINGET] installing via Add-AppxPackage >> "%LOG%"
+if defined LOG for %%S in ("%_WG_TMP%") do echo [INSTALL-WINGET] downloaded %%~zS bytes >> "%LOG%"
+echo     ^>^> installing via Add-AppxPackage ...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop'; Add-AppxPackage -Path '%_WG_TMP%' -ForceApplicationShutdown" >> "%LOG%" 2>&1
 set "_AP_RC=%ERRORLEVEL%"
