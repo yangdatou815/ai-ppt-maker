@@ -116,6 +116,6 @@ phases:
         name: 运维 / 工具
         items:
           - { name: "运行时调试开关 + SSE 日志", status: done }
-          - { name: "Roadmap 视图（项目鸟瞰）", status: in-progress }
+          - { name: "Roadmap 视图（项目鸟瞰）", status: done }
           - { name: "docker-compose 一键起", status: planned }
           - { name: "Gitee Go 加 frontend 构建 stage", status: planned }

@@ -10,7 +10,66 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
-## [0.4.0] — 2026-05-08
+## [0.5.0] — 2026-05-08
+
+Operational polish — installer hardening, project visibility, distribution.
+No backend or renderer behaviour changes.
+
+### Added
+- **Project Roadmap view** (`M5-3`).
+  - `frontend/src/views/RoadmapView.vue` renders the full
+    Phase → Milestone → Item tree from `backend/roadmap.yaml`, JIRA-backlog
+    style. Rows are colour-coded by status (`done` green, `in-progress`
+    amber, `planned` red) with a status badge per item.
+  - Drives the project rear-view-mirror: every commit that flips item
+    status updates the page automatically (Hard Rule #11).
+- **Asymptotic-then-linear progress bar** for outline + pptx generation.
+  - `frontend/src/components/ProgressBar.vue`: linear advance up to 95 %
+    over `EXPECTED_MS`, then holds; jumps to 100 % when the request
+    resolves. Avoids the "stuck at 100 %" feel of pure linear bars and
+    the "barely moves" feel of exponential ease-out.
+- **Runtime debug toggle + live SSE log streaming** (`M5-3`).
+  - `backend/app/api/debug.py`: `GET /api/debug/state`,
+    `POST /api/debug/state`, `GET /api/debug/stream` (SSE).
+  - `frontend/src/components/DebugDrawer.vue`: collapsible drawer with
+    a kill-switch and a tail-streaming console.
+- **Professional Windows installer icon + shortcuts.**
+  - `assets/app.ico` — multi-resolution (16/32/48/64/128/256) icon with
+    warm gradient background, white slide-deck glyph, gold AI sparkle.
+  - `assets/_make_icon.py` — Pillow-based generator, easy to re-skin.
+  - `install.bat` post-install creates three `.lnk` shortcuts pointing
+    to `start.bat` / `install.bat` with the icon (Desktop + repo root).
+- **Self-bootstrapping winget** in `install.bat`.
+  - `_common.bat :install_winget` downloads the latest
+    `Microsoft.DesktopAppInstaller.msixbundle` from the GitHub releases
+    API via PowerShell + TLS 1.2, installs via `Add-AppxPackage`.
+  - Triggered when winget is absent or detected as v1.0–v1.4 (heuristic
+    for "too old to have working sources").
+  - Download shows live progress: `curl.exe --progress-bar` first, then
+    PowerShell BITS, then `Invoke-WebRequest` as final fallback.
+
+### Changed
+- **`install.bat` moved to `scripts/`** alongside the other batch files.
+  Template auto-detects "running from `scripts/`" vs "running standalone
+  in clone root", so behaviour is unchanged for both layouts.
+- **`install.bat` ANSI colour UI** — green ok, yellow warn, red fail,
+  cyan info. ESC captured via the `prompt $E` trick; conhost VT enabled
+  via `HKCU\Console\VirtualTerminalLevel = 1`.
+- **Aggressive PATH probing** for Node / Python / Git / Ollama after a
+  winget install. New `:locate_*` helpers in `_common.bat` use static
+  probes plus `where /R` recursive search under WinGet packages,
+  `Program Files`, and `LocalAppData\Programs`. First hit prepends the
+  parent directory to PATH and logs the find.
+
+### Fixed
+- **Don't trust `winget`'s exit code.** Old winget (v1.2 in some Win11
+  installs) returns 0 from `winget install` even when the source
+  database is corrupt and nothing was installed. The script now
+  validates by re-locating the binary and, on miss, runs
+  `winget source reset --force` + `winget source update` and retries
+  once before bailing with an honest manual-install message.
+
+
 
 M2 part 3 — image/table layouts + editorial UI redesign.
 M2 milestone closes here.
