@@ -32,6 +32,7 @@ scripts/{dev.sh, dod.sh}
 8. **模板新增**：复制 `backend/templates/<existing>/`，改 `layout-mapping.yaml` + 替换 `master.pptx`。不改后端代码。模板必须实现 7 种 layout（见 `app/schemas/template.py::REQUIRED_LAYOUTS`）。
 9. **测试三层**：unit（纯函数）/ integration（FastAPI TestClient + fake Ollama）/ e2e（docker-compose 起服务）。最小覆盖率 70%，只准上调。
 10. **endless-mode 用户偏好**：与用户对话时回复以"你好"开头、需求不清先澄清、每轮以 askQuestions 收尾，直到收到"暂时不需要"。
+11. **Roadmap 同步**：每次提交代码前必须检查 `backend/roadmap.yaml`。如果本次改动让某 item 状态发生变化（计划→进行中、进行中→已完成、新增/删除/重命名 item / milestone），必须在同一个 commit 里更新 roadmap.yaml。代码与路线图不允许漂移。
 
 ## Layered Instructions
 
