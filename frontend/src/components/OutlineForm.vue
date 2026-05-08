@@ -3,8 +3,11 @@ import { computed, ref } from 'vue'
 import {
   createOutline,
   generatePptx,
+  parseTableInput,
   triggerBlobDownload,
+  uploadImage,
   type OutlineResponse,
+  type OutlineSection,
 } from '../api/client'
 
 const props = withDefaults(
@@ -116,6 +119,90 @@ async function generate() {
     generating.value = false
   }
 }
+
+// ---- M2-3: per-section image / table attachments --------------------------
+
+const attachError = ref<string | null>(null)
+const attachBusyIndex = ref<number | null>(null)
+const tableEditingIndex = ref<number | null>(null)
+const tableInput = ref('')
+const tableCaption = ref('')
+
+function _section(i: number): OutlineSection | null {
+  return result.value?.outline.sections[i] ?? null
+}
+
+async function pickImageFor(i: number, ev: Event) {
+  attachError.value = null
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  // Reset so the same file can be re-picked after an error.
+  input.value = ''
+  if (!file) return
+  const s = _section(i)
+  if (!s) return
+  attachBusyIndex.value = i
+  try {
+    const up = await uploadImage(file)
+    s.image = { file_id: up.file_id, caption: file.name }
+    s.layout_hint = 'content-image'
+  } catch (e: unknown) {
+    attachError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    attachBusyIndex.value = null
+  }
+}
+
+function removeImage(i: number) {
+  const s = _section(i)
+  if (!s) return
+  s.image = null
+  if (s.layout_hint === 'content-image') s.layout_hint = null
+}
+
+function openTableEditor(i: number) {
+  attachError.value = null
+  const s = _section(i)
+  if (!s) return
+  tableEditingIndex.value = i
+  if (s.table) {
+    tableInput.value = [s.table.headers, ...s.table.rows]
+      .map((r) => r.join('\t'))
+      .join('\n')
+    tableCaption.value = s.table.caption ?? ''
+  } else {
+    tableInput.value = ''
+    tableCaption.value = ''
+  }
+}
+
+function cancelTableEditor() {
+  tableEditingIndex.value = null
+  tableInput.value = ''
+  tableCaption.value = ''
+}
+
+function saveTable() {
+  const i = tableEditingIndex.value
+  if (i === null) return
+  const s = _section(i)
+  if (!s) return
+  const parsed = parseTableInput(tableInput.value, tableCaption.value.trim() || null)
+  if (parsed === null) {
+    attachError.value = '表格内容为空'
+    return
+  }
+  s.table = parsed
+  s.layout_hint = 'content-table'
+  cancelTableEditor()
+}
+
+function removeTable(i: number) {
+  const s = _section(i)
+  if (!s) return
+  s.table = null
+  if (s.layout_hint === 'content-table') s.layout_hint = null
+}
 </script>
 
 <template>
@@ -194,8 +281,52 @@ async function generate() {
             </li>
           </ul>
           <p v-if="s.speaker_notes" class="notes">备注：{{ s.speaker_notes }}</p>
+
+          <div class="attachments">
+            <div v-if="s.image" class="att-chip att-image">
+              <span>📎 图片：{{ s.image.caption || s.image.file_id }}</span>
+              <button type="button" class="link-mini" @click="removeImage(i)">移除</button>
+            </div>
+            <div v-if="s.table" class="att-chip att-table">
+              <span>📊 表格：{{ s.table.headers.length }} 列 × {{ s.table.rows.length }} 行</span>
+              <button type="button" class="link-mini" @click="openTableEditor(i)">编辑</button>
+              <button type="button" class="link-mini" @click="removeTable(i)">移除</button>
+            </div>
+            <div class="att-actions">
+              <label class="att-btn">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  hidden
+                  :disabled="attachBusyIndex === i"
+                  @change="(e) => pickImageFor(i, e)"
+                />
+                <span v-if="attachBusyIndex === i">上传中…</span>
+                <span v-else>{{ s.image ? '替换图片' : '+ 添加图片' }}</span>
+              </label>
+              <button
+                v-if="!s.table"
+                type="button"
+                class="att-btn"
+                @click="openTableEditor(i)"
+              >+ 添加表格</button>
+            </div>
+          </div>
         </li>
       </ol>
+
+      <div v-if="attachError" class="err" role="alert">{{ attachError }}</div>
+
+      <div v-if="tableEditingIndex !== null" class="table-editor" role="dialog">
+        <h4>编辑表格 · 第 {{ tableEditingIndex + 1 }} 段</h4>
+        <p class="hint">每行一条记录，列之间用 Tab 或逗号分隔；第一行作为表头。</p>
+        <textarea v-model="tableInput" rows="8" placeholder="季度&#9;收入&#10;Q1&#9;100&#10;Q2&#9;120" />
+        <input v-model="tableCaption" type="text" placeholder="表格标题（可选）" />
+        <div class="row">
+          <button type="button" class="primary" @click="saveTable">保存表格</button>
+          <button type="button" class="link" @click="cancelTableEditor">取消</button>
+        </div>
+      </div>
 
       <footer class="result-actions">
         <button

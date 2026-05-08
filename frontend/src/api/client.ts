@@ -15,13 +15,26 @@ export interface Bullet {
   emphasis: boolean
 }
 
+export interface ImageRef {
+  file_id: string
+  caption: string | null
+}
+
+export interface TableData {
+  headers: string[]
+  rows: string[][]
+  caption: string | null
+}
+
+export type LayoutHint = 'content-bullets' | 'content-image' | 'content-table' | null
+
 export interface OutlineSection {
   heading: string
   bullets: Bullet[]
-  image: unknown | null
-  table: unknown | null
+  image: ImageRef | null
+  table: TableData | null
   speaker_notes: string | null
-  layout_hint: string | null
+  layout_hint: LayoutHint
 }
 
 export interface OutlineDoc {
@@ -123,4 +136,44 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   a.remove()
   // Revoke on next tick — Safari needs the URL to still be alive when click() runs.
   setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+export interface UploadResult {
+  file_id: string
+  bytes: number
+  content_type: string
+}
+
+export async function uploadImage(file: File): Promise<UploadResult> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const r = await fetch(`${BASE}/upload`, { method: 'POST', body: fd })
+  if (!r.ok) {
+    let detail = ''
+    try {
+      detail = (await r.json()).detail ?? ''
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`POST /upload failed: ${r.status}${detail ? ' — ' + detail : ''}`)
+  }
+  return r.json()
+}
+
+/**
+ * Parse a tab- or comma-separated block into a TableData. First non-blank
+ * line is treated as the header row. Empty input → null. Tabs win over
+ * commas if both appear (tabs are clipboard-from-Excel friendly).
+ */
+export function parseTableInput(text: string, caption: string | null = null): TableData | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+  if (lines.length === 0) return null
+  const sep = lines[0].includes('\t') ? '\t' : ','
+  const split = (l: string) => l.split(sep).map((c) => c.trim())
+  const headers = split(lines[0])
+  const rows = lines.slice(1).map(split)
+  return { headers, rows, caption }
 }
