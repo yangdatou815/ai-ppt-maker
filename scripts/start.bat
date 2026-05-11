@@ -28,8 +28,12 @@ echo ============================================================
 
 set "VENV_PY=%PROJ_ROOT%\backend\.venv\Scripts\python.exe"
 if not exist "%VENV_PY%" (
-    echo [错误] backend\.venv 不存在, 请先运行 scripts\deploy.bat
-    pause & exit /b 1
+    echo [警告] backend\.venv 不存在 - 自动调用 scripts\deploy.bat 一次性部署
+    call "%~dp0deploy.bat"
+    if not exist "%VENV_PY%" (
+        echo [错误] deploy.bat 已结束但仍未创建 backend\.venv, 无法启动
+        pause & exit /b 1
+    )
 )
 
 if not exist "%PROJ_ROOT%\frontend\dist\index.html" (

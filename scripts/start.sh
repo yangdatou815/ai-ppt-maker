@@ -14,8 +14,15 @@ error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 VENV_DIR="$REPO_ROOT/backend/.venv"
 if [ ! -d "$VENV_DIR" ]; then
-    error "backend/.venv 不存在，请先运行 ./scripts/deploy.sh"
-    exit 1
+    warn "backend/.venv 不存在 — 自动调用 ./scripts/deploy.sh 一次性部署"
+    if ! "$SCRIPT_DIR/deploy.sh"; then
+        error "deploy.sh 失败 — 请按上方日志修复后再次运行 ./scripts/start.sh"
+        exit 1
+    fi
+    if [ ! -d "$VENV_DIR" ]; then
+        error "deploy.sh 已结束但仍未创建 backend/.venv，无法启动"
+        exit 1
+    fi
 fi
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
