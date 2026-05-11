@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 
 from app.config import get_settings
 from app.schemas.template import REQUIRED_LAYOUTS, TemplateInfo, TemplateLayoutMapping
@@ -105,3 +106,27 @@ def get_template(name: str) -> TemplateInfo:
         if t.name == name:
             return t
     raise HTTPException(status_code=404, detail=f"template '{name}' not found")
+
+
+@router.get("/templates/{name}/thumbnail.png")
+def get_template_thumbnail(name: str) -> FileResponse:
+    """Serve the static ``thumbnail.png`` for a template.
+
+    Only template names returned by ``GET /api/templates`` are accepted —
+    this allowlist (plus the bare ``thumbnail.png`` filename) closes the
+    path-traversal door entirely.
+    """
+    valid = {t.name for t in _scan_templates()}
+    if name not in valid:
+        raise HTTPException(status_code=404, detail=f"template '{name}' not found")
+    settings = get_settings()
+    path = settings.templates_dir / name / "thumbnail.png"
+    if not path.is_file():
+        raise HTTPException(
+            status_code=404, detail=f"template '{name}' has no thumbnail",
+        )
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )

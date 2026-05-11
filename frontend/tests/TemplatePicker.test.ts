@@ -12,7 +12,7 @@ const fakes: TemplateInfo[] = [
     theme: { primary: '#0B1F3A', accent: '#C9A24E' },
     fonts: { heading: 'Source Han Serif CN' },
     has_master: false,
-    thumbnail_url: null,
+    thumbnail_url: '/api/templates/executive-dark/thumbnail.png',
   },
   {
     name: 'minimal-light',
@@ -46,5 +46,13 @@ describe('TemplatePicker', () => {
     })
     expect(w.findAll('.tcard')[0].classes()).toContain('selected')
     expect(w.findAll('.tcard')[1].classes()).not.toContain('selected')
+  })
+
+  it('renders thumbnail <img> only when thumbnail_url is set', () => {
+    const w = mount(TemplatePicker, { props: { templates: fakes, selected: null } })
+    const imgs = w.findAll('img.thumbnail')
+    expect(imgs).toHaveLength(1)
+    expect(imgs[0].attributes('src')).toBe('/api/templates/executive-dark/thumbnail.png')
+    expect(imgs[0].attributes('alt')).toContain('Executive Dark')
   })
 })

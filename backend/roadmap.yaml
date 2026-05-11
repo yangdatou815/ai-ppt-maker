@@ -69,7 +69,7 @@ phases:
         items:
           - { name: "tech / business / academic master.pptx", status: done }
           - { name: "渲染器从 master.pptx 派生 layout", status: done }
-          - { name: "前端模板预览缩略图", status: planned }
+          - { name: "前端模板预览缩略图", status: done }
 
       - id: M3-2
         name: AI 模板分类

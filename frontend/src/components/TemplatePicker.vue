@@ -34,6 +34,13 @@ function swatches(theme: Record<string, string>): string[] {
       :class="{ selected: selected === t.name }"
       @click="emit('select', t.name)"
     >
+      <img
+        v-if="t.thumbnail_url"
+        :src="t.thumbnail_url"
+        :alt="`${t.display_name} preview`"
+        class="thumbnail"
+        loading="lazy"
+      />
       <div class="swatches">
         <span
           v-for="c in swatches(t.theme)"

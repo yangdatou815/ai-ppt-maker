@@ -193,6 +193,15 @@ h1::after { content: none; }
   border: 1px solid var(--hairline);
 }
 
+.tcard .thumbnail {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+}
+
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag {
   font-family: var(--mono);

@@ -11,6 +11,19 @@ Categories used (in order, omit empty ones):
 ## [Unreleased]
 
 ### Added
+- **M3-1 phase 3 — template preview thumbnails in the picker.**
+  - `backend/templates/_make_thumbnails.py` (Pillow) generates a 640×360
+    brand-tinted 16:9 PNG per template (gradient bg, accent stripe, swatch
+    row, AI badge) and writes it as `backend/templates/<name>/thumbnail.png`.
+  - `GET /api/templates/{name}/thumbnail.png` serves the static PNG with
+    a 1-hour `Cache-Control`. Name is allowlist-checked against scanned
+    templates so path traversal is closed at the route boundary.
+  - `frontend/src/components/TemplatePicker.vue` renders `<img class="thumbnail">`
+    above the swatches whenever `thumbnail_url` is non-null; CSS keeps the
+    image 16:9 with `object-fit: cover`. Falls back gracefully to the
+    swatch-only card when a template ships without a thumbnail.
+  - Roadmap item M3-1 "前端模板预览缩略图" flipped to `done`.
+
 - **M3-1 phase 1 — brand-tinted master.pptx for all 3 templates.**
   - `backend/templates/_make_masters.py` generates real `.pptx` master
     files (tech / business / academic) with per-template brand tints,
