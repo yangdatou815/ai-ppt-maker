@@ -161,10 +161,25 @@ if [ -n "$OLLAMA_BIN" ] && [ "${APM_AUTO_PULL:-1}" = "1" ]; then
             sleep 1
         done
     fi
-    ui_info "ollama pull $MODEL"
-    if ! "$OLLAMA_BIN" pull "$MODEL"; then
-        ui_warn "模型拉取失败，稍后手动: $OLLAMA_BIN pull $MODEL"
-        OLLAMA_STATUS="warn"
+
+    # Skip pull if the requested model — or any quantization variant
+    # of the same base (e.g. ``qwen2.5:7b-instruct-q4_K_M``) — is
+    # already present locally. ``ollama pull`` against a different tag
+    # would otherwise re-download the unquantized version every deploy.
+    MODEL_BASE="${MODEL%%-q[0-9]*}"   # strip a trailing -qX_K_M / -qN suffix
+    EXISTING=""
+    if [ "${APM_FORCE_PULL:-0}" != "1" ]; then
+        EXISTING=$("$OLLAMA_BIN" list 2>/dev/null | awk 'NR>1 {print $1}' \
+            | grep -E "^${MODEL_BASE//./\\.}(\$|-)" | head -n1 || true)
+    fi
+    if [ -n "$EXISTING" ]; then
+        ui_info "模型已存在: $EXISTING — 跳过 pull (APM_FORCE_PULL=1 可强制重拉)"
+    else
+        ui_info "ollama pull $MODEL"
+        if ! "$OLLAMA_BIN" pull "$MODEL"; then
+            ui_warn "模型拉取失败，稍后手动: $OLLAMA_BIN pull $MODEL"
+            OLLAMA_STATUS="warn"
+        fi
     fi
 elif [ -z "$OLLAMA_BIN" ]; then
     ui_warn "未发现 ollama，跳过模型拉取；M2 起 LLM 调用将失败"
