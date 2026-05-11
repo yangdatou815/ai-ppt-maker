@@ -118,3 +118,76 @@ def test_validation_failure_falls_back(client):
     r = client.post("/api/outline", json={"content": "Hello"})
     assert r.status_code == 200
     assert r.json()["used_fallback"] is True
+
+
+# ---------- /api/classify-template -----------------------------------------
+
+
+def _classify_json(template: str = "tech-blue", confidence: float = 0.92,
+                   reason: str = "API design content") -> str:
+    return json.dumps(
+        {"template": template, "confidence": confidence, "reason": reason},
+        ensure_ascii=False,
+    )
+
+
+def test_classify_happy_path(client):
+    outline_api.set_client_factory(lambda: StubClient(_classify_json()))
+    r = client.post("/api/classify-template", json={"content": "REST API design"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["used_fallback"] is False
+    assert body["template"] == "tech-blue"
+    assert body["confidence"] == 0.92
+    assert body["used_model"] == "stub-7b"
+
+
+def test_classify_rejects_unknown_template_and_falls_back(client):
+    bad = _classify_json(template="not-a-real-template")
+    outline_api.set_client_factory(lambda: StubClient(bad))
+    r = client.post("/api/classify-template", json={"content": "投资人会议 Q4 营收"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["used_fallback"] is True
+    assert body["template"] in {"executive-dark", "minimal-light", "tech-blue"}
+
+
+def test_classify_falls_back_on_llm_down(client):
+    outline_api.set_client_factory(lambda: FailingClient())
+    r = client.post("/api/classify-template", json={"content": "API benchmark"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["used_fallback"] is True
+    assert body["used_model"] is None
+    # Heuristic should pick up "API" + "benchmark" → tech-blue.
+    assert body["template"] == "tech-blue"
+
+
+def test_classify_garbage_falls_back(client):
+    outline_api.set_client_factory(lambda: StubClient("not json"))
+    r = client.post("/api/classify-template", json={"content": "investor board Q4"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["used_fallback"] is True
+    assert body["template"] == "executive-dark"
+
+
+def test_classify_empty_rejected(client):
+    r = client.post("/api/classify-template", json={"content": ""})
+    assert r.status_code == 422
+
+
+def test_classify_oversize_rejected(client):
+    big = "a" * 30000
+    r = client.post("/api/classify-template", json={"content": big})
+    assert r.status_code == 413
+
+
+def test_classify_clamps_confidence(client):
+    # LLM returns confidence > 1.0 — endpoint must clamp to [0,1].
+    bad = _classify_json(confidence=2.5)
+    outline_api.set_client_factory(lambda: StubClient(bad))
+    r = client.post("/api/classify-template", json={"content": "API"})
+    assert r.status_code == 200
+    body = r.json()
+    assert 0.0 <= body["confidence"] <= 1.0

@@ -92,6 +92,41 @@ export async function createOutline(args: {
   return r.json()
 }
 
+export interface ClassifyTemplateResponse {
+  template: string
+  confidence: number
+  reason: string
+  used_fallback: boolean
+  used_model: string | null
+  elapsed_ms: number
+}
+
+export async function classifyTemplate(args: {
+  content: string
+  language?: 'auto' | 'zh' | 'en'
+}): Promise<ClassifyTemplateResponse> {
+  const r = await fetch(`${BASE}/classify-template`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: args.content,
+      language: args.language ?? 'auto',
+    }),
+  })
+  if (!r.ok) {
+    let detail = ''
+    try {
+      detail = (await r.json()).detail ?? ''
+    } catch {
+      /* ignore */
+    }
+    throw new Error(
+      `POST /classify-template failed: ${r.status}${detail ? ' — ' + detail : ''}`,
+    )
+  }
+  return r.json()
+}
+
 export interface GeneratePptxResult {
   blob: Blob
   filename: string

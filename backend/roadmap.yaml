@@ -75,9 +75,9 @@ phases:
         name: AI 模板分类
         summary: 根据文本主题自动选模板
         items:
-          - { name: "主题分类 prompt + Ollama 调用", status: planned }
-          - { name: "POST /api/classify-template", status: planned }
-          - { name: "前端 auto-pick 开关", status: planned }
+          - { name: "主题分类 prompt + Ollama 调用", status: done }
+          - { name: "POST /api/classify-template", status: done }
+          - { name: "前端 auto-pick 开关", status: done }
 
   - id: multimodal
     name: 多模态输入

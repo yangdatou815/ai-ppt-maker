@@ -59,7 +59,11 @@ onMounted(async () => {
         />
       </section>
 
-      <OutlineForm class="block" :template="selected" />
+      <OutlineForm
+        class="block"
+        :template="selected"
+        @template-suggested="(name: string) => (selected = name)"
+      />
     </template>
 
     <RoadmapView v-else />

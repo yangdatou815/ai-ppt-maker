@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import {
   createOutline,
+  classifyTemplate,
   generatePptx,
   parseTableInput,
   triggerBlobDownload,
@@ -17,6 +18,8 @@ const props = withDefaults(
   }>(),
   { template: null },
 )
+
+const emit = defineEmits<{ (e: 'template-suggested', name: string): void }>()
 
 const content = ref('')
 const language = ref<'auto' | 'zh' | 'en'>('auto')
@@ -117,6 +120,42 @@ const SAMPLE = `# HotPulse 发布会
 
 function loadSample() {
   content.value = SAMPLE
+}
+
+// ---- M3-2: AI auto-pick template ------------------------------------------
+
+const classifyLoading = ref(false)
+const classifyError = ref<string | null>(null)
+const classifyResult = ref<{
+  template: string
+  confidence: number
+  reason: string
+  used_fallback: boolean
+} | null>(null)
+
+const canAutoPick = computed(
+  () => !classifyLoading.value && content.value.trim().length > 0 && !overLimit.value,
+)
+
+async function autoPickTemplate() {
+  if (!canAutoPick.value) return
+  classifyLoading.value = true
+  classifyError.value = null
+  classifyResult.value = null
+  try {
+    const r = await classifyTemplate({ content: content.value, language: language.value })
+    classifyResult.value = {
+      template: r.template,
+      confidence: r.confidence,
+      reason: r.reason,
+      used_fallback: r.used_fallback,
+    }
+    emit('template-suggested', r.template)
+  } catch (e: unknown) {
+    classifyError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    classifyLoading.value = false
+  }
 }
 
 const canGenerate = computed(
@@ -284,7 +323,30 @@ function removeTable(i: number) {
         <span v-if="!loading">生成大纲</span>
         <span v-else>生成中… {{ elapsedDisplay }}</span>
       </button>
+
+      <button
+        type="button"
+        class="link"
+        :disabled="!canAutoPick"
+        :title="'根据正文内容自动选模板（也会写回上方的「选择模板」）'"
+        @click="autoPickTemplate"
+      >
+        <span v-if="!classifyLoading">🤖 AI 选模板</span>
+        <span v-else>分析中…</span>
+      </button>
     </div>
+
+    <div v-if="classifyResult" class="classify-pill" data-testid="classify-pill">
+      <strong>{{ classifyResult.template }}</strong>
+      <span class="confidence">
+        置信度 {{ Math.round(classifyResult.confidence * 100) }}%
+      </span>
+      <span v-if="classifyResult.used_fallback" class="badge-fallback">
+        启发式（LLM 未命中）
+      </span>
+      <span class="reason">{{ classifyResult.reason }}</span>
+    </div>
+    <div v-if="classifyError" class="err" role="alert">{{ classifyError }}</div>
 
     <div v-if="loading" class="progress" role="progressbar"
          :aria-valuenow="Math.round(outlineProgress)" aria-valuemin="0" aria-valuemax="100">

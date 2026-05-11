@@ -272,6 +272,46 @@ button.link:disabled {
   cursor: not-allowed;
 }
 
+.classify-pill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--hairline);
+  background: rgba(17, 17, 17, 0.025);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.classify-pill strong {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.classify-pill .confidence {
+  color: var(--ink-mute);
+}
+.classify-pill .badge-fallback {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.classify-pill .reason {
+  flex-basis: 100%;
+  color: var(--ink-mute);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .field {
   display: block;
   position: relative;

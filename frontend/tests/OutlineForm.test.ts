@@ -262,4 +262,60 @@ describe('OutlineForm', () => {
     expect(w.find('.att-chip.att-table').text()).toContain('2 列')
     expect(w.find('.att-chip.att-table').text()).toContain('2 行')
   })
+
+  it('M3-2: AI auto-pick calls /api/classify-template and emits suggestion', async () => {
+    const fetchMock = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => ({
+        template: 'tech-blue',
+        confidence: 0.92,
+        reason: 'Talks about API design and architecture.',
+        used_fallback: false,
+        used_model: 'qwen2.5:7b-instruct',
+        elapsed_ms: 800,
+      }),
+    })) as unknown as typeof fetch
+    global.fetch = fetchMock
+
+    const w = mount(OutlineForm)
+    await w.find('textarea').setValue('REST API design and architecture')
+    // The auto-pick button is the second `button.link` (load-sample is first).
+    const autoPick = w.findAll('button.link')[1]
+    expect(autoPick.text()).toContain('AI 选模板')
+    await autoPick.trigger('click')
+    await flushPromises()
+
+    const calls = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls).toHaveLength(1)
+    expect(String(calls[0][0])).toContain('/classify-template')
+    const body = JSON.parse((calls[0][1] as RequestInit).body as string)
+    expect(body.content).toBe('REST API design and architecture')
+
+    expect(w.find('[data-testid="classify-pill"]').exists()).toBe(true)
+    expect(w.find('[data-testid="classify-pill"]').text()).toContain('tech-blue')
+    expect(w.find('[data-testid="classify-pill"]').text()).toContain('92%')
+    expect(w.emitted('template-suggested')?.[0]).toEqual(['tech-blue'])
+  })
+
+  it('M3-2: AI auto-pick shows fallback badge when used_fallback=true', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        template: 'minimal-light',
+        confidence: 0.2,
+        reason: 'No domain keywords matched.',
+        used_fallback: true,
+        used_model: null,
+        elapsed_ms: 5,
+      }),
+    })) as unknown as typeof fetch
+
+    const w = mount(OutlineForm)
+    await w.find('textarea').setValue('hello')
+    await w.findAll('button.link')[1].trigger('click')
+    await flushPromises()
+
+    expect(w.find('.classify-pill .badge-fallback').exists()).toBe(true)
+  })
 })
+

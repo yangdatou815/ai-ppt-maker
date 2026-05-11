@@ -10,6 +10,23 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
+### Added
+- **M3-2 — AI template auto-pick.**
+  - `POST /api/classify-template` (in `backend/app/api/outline.py`) takes
+    raw text and returns `{template, confidence, reason, used_fallback,
+    used_model, elapsed_ms}`. The picked template is allowlist-checked
+    against the live registry; bad LLM picks fall through to a deterministic
+    keyword heuristic (`backend/app/outline/classify_fallback.py`) so the
+    endpoint never 5xx's. Confidence is clamped to `[0,1]`. Reuses the
+    existing Ollama client + JSON repair pipeline.
+  - `frontend/src/components/OutlineForm.vue` adds an “🤖 AI 选模板”
+    button next to “生成大纲”. On click it calls the new endpoint, shows
+    a `.classify-pill` with the picked template / confidence / reason
+    (and a “启发式” badge when `used_fallback=true`), and emits
+    `template-suggested` so `App.vue` flips the picker selection.
+  - Roadmap items M3-2 (“主题分类 prompt”, “POST /api/classify-template”,
+    “前端 auto-pick 开关”) all flipped to `done`.
+
 ## [0.6.0] — 2026-05-11
 
 M3-1 milestone complete — three real `.pptx` masters now drive rendering

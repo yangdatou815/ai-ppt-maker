@@ -8,10 +8,20 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
+from app.outline.classify_fallback import DEFAULT_TEMPLATE, classify_heuristic
+from app.outline.classify_prompts import (
+    CLASSIFY_SYSTEM_PROMPT,
+    build_classify_user_message,
+)
 from app.outline.fallback import rule_based
 from app.outline.llm_client import LlmUnavailableError, OllamaClient
 from app.outline.prompts import SYSTEM_PROMPT, build_user_message
 from app.outline.repair import JsonRepairError, repair
+from app.schemas.classify import (
+    ALLOWED_TEMPLATES,
+    ClassifyTemplateRequest,
+    ClassifyTemplateResponse,
+)
 from app.schemas.outline import OutlineDoc
 
 log = logging.getLogger(__name__)
@@ -98,6 +108,81 @@ def create_outline(req: OutlineRequest) -> OutlineResponse:
     )
     return OutlineResponse(
         outline=outline,
+        used_fallback=used_fallback,
+        used_model=used_model,
+        elapsed_ms=elapsed_ms,
+    )
+
+
+@router.post("/classify-template", response_model=ClassifyTemplateResponse)
+def classify_template(req: ClassifyTemplateRequest) -> ClassifyTemplateResponse:
+    """Recommend the best slide template for the given source text.
+
+    Mirrors the outline pipeline: try the LLM, repair JSON, validate the
+    template against an allowlist, fall back to a deterministic keyword
+    heuristic on any error so the endpoint never 5xx's. The
+    ``used_fallback`` flag lets the UI surface a "guess" badge.
+    """
+    if len(req.content) > _MAX_CONTENT_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"content exceeds {_MAX_CONTENT_CHARS} chars; trim or split.",
+        )
+
+    log.debug(
+        "classify request: language=%s content_chars=%d",
+        req.language, len(req.content),
+    )
+
+    t0 = time.perf_counter()
+    used_fallback = False
+    used_model: str | None = None
+    template: str | None = None
+    confidence: float = 0.0
+    reason: str = ""
+
+    try:
+        client = _client_factory()
+        resp = client.chat_json(
+            CLASSIFY_SYSTEM_PROMPT,
+            build_classify_user_message(req.content, req.language),
+        )
+        used_model = resp.model
+        try:
+            obj = repair(resp.raw_content)
+            picked = str(obj.get("template", "")).strip()
+            if picked not in ALLOWED_TEMPLATES:
+                raise ValueError(f"LLM returned unknown template: {picked!r}")
+            template = picked
+            raw_conf = obj.get("confidence", 0.5)
+            try:
+                confidence = max(0.0, min(1.0, float(raw_conf)))
+            except (TypeError, ValueError):
+                confidence = 0.5
+            raw_reason = obj.get("reason", "")
+            reason = str(raw_reason).strip() or "LLM did not provide a reason."
+        except (JsonRepairError, ValueError) as exc:
+            log.warning("Classify JSON unusable, using heuristic: %s", exc)
+            log.debug("Classify raw content (first 500 chars): %s", resp.raw_content[:500])
+            used_fallback = True
+    except LlmUnavailableError as exc:
+        log.warning("LLM unavailable for classify, using heuristic: %s", exc)
+        used_fallback = True
+
+    if template is None:
+        template, confidence, reason = classify_heuristic(req.content)
+        if template not in ALLOWED_TEMPLATES:  # paranoia — heuristic is hard-coded
+            template = DEFAULT_TEMPLATE
+
+    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+    log.info(
+        "classify done: template=%s confidence=%.2f fallback=%s model=%s elapsed_ms=%d",
+        template, confidence, used_fallback, used_model, elapsed_ms,
+    )
+    return ClassifyTemplateResponse(
+        template=template,
+        confidence=confidence,
+        reason=reason,
         used_fallback=used_fallback,
         used_model=used_model,
         elapsed_ms=elapsed_ms,
