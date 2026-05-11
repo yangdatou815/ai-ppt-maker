@@ -10,6 +10,11 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-11
+
+M3-1 milestone complete — three real `.pptx` masters now drive rendering
+end-to-end and the template picker shows brand-tinted preview thumbnails.
+
 ### Added
 - **M3-1 phase 3 — template preview thumbnails in the picker.**
   - `backend/templates/_make_thumbnails.py` (Pillow) generates a 640×360
