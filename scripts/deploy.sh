@@ -62,6 +62,38 @@ ui_ok
 
 # --- 3. Node + 前端构建 ---
 ui_step "前端 npm install + build"
+find_node() {
+    # 1. plain $PATH
+    if command -v node >/dev/null 2>&1; then
+        command -v node
+        return 0
+    fi
+    # 2. nvm default
+    for d in "$HOME/.nvm/versions/node"/*/bin; do
+        [ -x "$d/node" ] && { echo "$d/node"; return 0; }
+    done
+    # 3. n / volta
+    for d in "$HOME/n/bin" "$HOME/.volta/bin"; do
+        [ -x "$d/node" ] && { echo "$d/node"; return 0; }
+    done
+    # 4. workspace-local prebuilt tarball (e.g. node-v20.18.0-linux-x64/bin/node
+    #    sitting next to the repo). This is the layout used on locked-down
+    #    corporate dev hosts where users unzip an offline node release.
+    for d in "$REPO_ROOT/.."/node-v*-linux-*/bin "$REPO_ROOT/.."/node-v*-darwin-*/bin; do
+        [ -x "$d/node" ] && { echo "$d/node"; return 0; }
+    done
+    return 1
+}
+
+NODE_BIN=""
+if NODE_BIN=$(find_node); then
+    NODE_DIR="$(dirname "$NODE_BIN")"
+    case ":$PATH:" in
+        *":$NODE_DIR:"*) ;;
+        *) export PATH="$NODE_DIR:$PATH"; ui_info "PATH += $NODE_DIR" ;;
+    esac
+fi
+
 if ! command -v node >/dev/null 2>&1; then
     ui_fail "未找到 Node.js (>=18)，请先安装：https://nodejs.org"
     ui_summary || true
