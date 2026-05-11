@@ -10,6 +10,21 @@ Categories used (in order, omit empty ones):
 
 ## [Unreleased]
 
+### Added
+- **M3-1 phase 1 — brand-tinted master.pptx for all 3 templates.**
+  - `backend/templates/_make_masters.py` generates real `.pptx` master
+    files (tech / business / academic) with per-template brand tints,
+    replacing the previous purely programmatic theming.
+- **M3-1 phase 2 — renderer loads master.pptx as base Presentation.**
+  - `backend/app/render/pptx_renderer.py` now derives the output deck
+    from the selected template's master.pptx instead of an empty
+    `Presentation()`, so brand layouts/colours carry over end-to-end.
+
+### Fixed
+- `scripts/install.bat`: set the real Gitee repo URL as the default for
+  the `git clone` fallback path so first-time installs no longer fail
+  when `APM_REPO_URL` is unset.
+
 ## [0.5.0] — 2026-05-08
 
 Operational polish — installer hardening, project visibility, distribution.
