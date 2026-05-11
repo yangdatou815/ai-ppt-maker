@@ -10,8 +10,16 @@ requires-python = ">=3.9"
 dependencies = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
-    "pydantic>=2.7",
-    "pydantic-settings>=2.3",
+    # Upper bound: pydantic >=2.11 calls ``str.replace`` on values returned by
+    # ``typing.get_args(Literal[...])`` while building its JSON-schema
+    # dispatch table. On Python 3.9.0 (which Gitee Go's ``build@python`` plugin
+    # ships) ``get_args`` is buggy and yields ``_SpecialForm`` instances
+    # instead of strings → ``AttributeError: '_SpecialForm' object has no
+    # attribute 'replace'`` whenever FastAPI builds the OpenAPI schema. The
+    # bug is fixed in CPython 3.9.1+, but we cannot dictate the CI image's
+    # patch version, so cap pydantic to the last 2.10.x line.
+    "pydantic>=2.7,<2.11",
+    "pydantic-settings>=2.3,<2.11",
     "python-multipart>=0.0.9",
     "PyYAML>=6.0",
     "python-pptx>=0.6.23",
