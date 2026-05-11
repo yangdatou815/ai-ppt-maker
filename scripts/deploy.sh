@@ -20,12 +20,12 @@ ui_banner "ai-ppt-maker · 一键部署" "Linux / macOS"
 ui_init 4
 
 find_python() {
-    for c in python3.13 python3.12 python3.11 python3; do
+    for c in python3.13 python3.12 python3.11 python3.10 python3.9 python3; do
         if command -v "$c" >/dev/null 2>&1; then
             local ver
             ver=$("$c" -c 'import sys;print(".".join(map(str,sys.version_info[:2])))' 2>/dev/null || echo "0.0")
             local major minor; IFS=. read -r major minor <<<"$ver"
-            if [ "$major" -ge 3 ] && [ "$minor" -ge 11 ]; then
+            if [ "$major" -ge 3 ] && [ "$minor" -ge 9 ]; then
                 echo "$c"; return 0
             fi
         fi
@@ -34,9 +34,9 @@ find_python() {
 }
 
 # --- 1. Python ---
-ui_step "检查 Python (>=3.11)"
+ui_step "检查 Python (>=3.9)"
 if ! PYTHON=$(find_python); then
-    ui_fail "找不到 Python >= 3.11"
+    ui_fail "找不到 Python >= 3.9"
     ui_summary || true
     exit 1
 fi

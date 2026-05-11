@@ -4,7 +4,7 @@
 
 ## Tech Stack
 
-- Backend：Python 3.11 + FastAPI + python-pptx + python-docx + openpyxl + Pillow + httpx，pydantic v2。
+- Backend：Python 3.9+ (CI runs literal 3.9.0；本地 3.11+ 推荐) + FastAPI + python-pptx + python-docx + openpyxl + Pillow + httpx，pydantic v2 (capped &lt;2.11 due to Python 3.9.0 typing bug)。
 - Frontend：Vue 3 + Vite + TypeScript（无 Vuex/Pinia，组件本地状态足够）。
 - LLM：本地 Ollama，默认 `qwen2.5:7b-instruct`。
 - Preview：LibreOffice headless（容器内）。

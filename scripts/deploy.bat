@@ -63,7 +63,7 @@ if not defined WINGET_EXE (
 )
 
 REM --- 1. Python ---
-call :ui_step "检查 Python (>=3.11)"
+call :ui_step "检查 Python (>=3.9)"
 call :find_python
 if not defined PY_EXE (
     if defined WINGET_EXE (
@@ -74,7 +74,7 @@ if not defined PY_EXE (
     )
 )
 if not defined PY_EXE (
-    call :ui_fail "未找到 Python (3.11+)"
+    call :ui_fail "未找到 Python (3.9+)"
     call :ui_summary
     pause & exit /b 1
 )
@@ -92,12 +92,12 @@ for /f "tokens=1,2 delims=." %%a in ("!PYVER!") do (
     set PYMIN=%%b
 )
 if !PYMAJ! LSS 3 (
-    call :ui_fail "Python 版本过低，需要 3.11+，当前 !PYVER!"
+    call :ui_fail "Python 版本过低，需要 3.9+，当前 !PYVER!"
     call :ui_summary
     pause & exit /b 1
 )
-if !PYMAJ! EQU 3 if !PYMIN! LSS 11 (
-    call :ui_fail "Python 版本过低，需要 3.11+，当前 !PYVER!"
+if !PYMAJ! EQU 3 if !PYMIN! LSS 9 (
+    call :ui_fail "Python 版本过低，需要 3.9+，当前 !PYVER!"
     call :ui_summary
     pause & exit /b 1
 )
@@ -619,6 +619,8 @@ REM Last resort: scan WinGet packages and Program Files trees.
 if defined LOG echo [LOCATE-PYTHON %TIME%] starting recursive probe >> "%LOG%"
 for %%R in (
     "%LOCALAPPDATA%\Microsoft\WinGet\Packages"
+    "%ProgramFiles%\Python39"
+    "%ProgramFiles%\Python310"
     "%ProgramFiles%\Python311"
     "%ProgramFiles%\Python312"
     "%ProgramFiles%\Python313"
