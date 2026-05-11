@@ -105,18 +105,49 @@ ui_ok
 
 # --- 4. Ollama ---
 ui_step "检查 Ollama + 拉取模型"
+find_ollama() {
+    # 1. explicit override
+    if [ -n "${APM_OLLAMA_BIN:-}" ] && [ -x "$APM_OLLAMA_BIN" ]; then
+        echo "$APM_OLLAMA_BIN"; return 0
+    fi
+    # 2. plain $PATH
+    if command -v ollama >/dev/null 2>&1; then
+        command -v ollama
+        return 0
+    fi
+    # 3. workspace-local prebuilt tarball next to the repo, e.g.
+    #    /var/fpwork/<user>/ollama/bin/ollama on locked-down dev hosts.
+    for d in "$REPO_ROOT/.."/ollama/bin "$REPO_ROOT/.."/ollama; do
+        [ -x "$d/ollama" ] && { echo "$d/ollama"; return 0; }
+    done
+    # 4. user-local install (the pattern ollama.com/install.sh uses without sudo).
+    for d in "$HOME/.local/bin" "$HOME/bin" "/usr/local/bin"; do
+        [ -x "$d/ollama" ] && { echo "$d/ollama"; return 0; }
+    done
+    return 1
+}
+
 OLLAMA_BIN=""
-if [ -n "${APM_OLLAMA_BIN:-}" ] && [ -x "$APM_OLLAMA_BIN" ]; then
-    OLLAMA_BIN="$APM_OLLAMA_BIN"
-elif command -v ollama >/dev/null 2>&1; then
-    OLLAMA_BIN="$(command -v ollama)"
+if OLLAMA_BIN=$(find_ollama); then
+    OLLAMA_DIR="$(dirname "$OLLAMA_BIN")"
+    case ":$PATH:" in
+        *":$OLLAMA_DIR:"*) ;;
+        *) export PATH="$OLLAMA_DIR:$PATH"; ui_info "PATH += $OLLAMA_DIR" ;;
+    esac
 fi
 
-if [ -z "$OLLAMA_BIN" ] && [ "${APM_AUTO_INSTALL:-1}" = "1" ]; then
-    ui_info "未检测到 ollama，尝试 https://ollama.com/install.sh"
+# Skip remote install entirely unless the user opts in. The official
+# install.sh elevates to sudo and writes to /usr/local — that's invasive
+# on shared dev hosts. Operators on isolated machines can either drop a
+# pre-extracted tarball next to the repo (auto-detected above), or set
+# APM_AUTO_INSTALL=1 to let the script run the upstream installer.
+if [ -z "$OLLAMA_BIN" ] && [ "${APM_AUTO_INSTALL:-0}" = "1" ]; then
+    ui_info "未检测到 ollama，尝试 https://ollama.com/install.sh (APM_AUTO_INSTALL=1)"
     if command -v curl >/dev/null 2>&1 && curl -fsSL https://ollama.com/install.sh | sh; then
-        command -v ollama >/dev/null 2>&1 && OLLAMA_BIN="$(command -v ollama)"
+        OLLAMA_BIN=$(find_ollama || true)
     fi
+elif [ -z "$OLLAMA_BIN" ]; then
+    ui_info "未检测到 ollama；如需自动安装请重跑：APM_AUTO_INSTALL=1 ./scripts/deploy.sh"
 fi
 
 OLLAMA_STATUS="ok"
