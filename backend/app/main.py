@@ -13,6 +13,7 @@ from app import __version__
 from app.api import debug, generate, jobs, outline, roadmap, templates, upload
 from app.config import get_settings
 from app.logging_setup import setup_logging
+from app.ollama_health import probe_ollama
 
 setup_logging(get_settings().log_level)
 log = logging.getLogger("ai-ppt-maker")
@@ -31,7 +32,17 @@ def create_app() -> FastAPI:
 
     @app.get("/api/healthz")
     def healthz() -> dict:
-        return {"ok": True, "version": __version__, "model": settings.ollama_model}
+        # ``model`` is the *configured* tag (echo of OLLAMA_MODEL). To tell
+        # whether the daemon actually has a usable model, probe /api/tags.
+        # The probe is best-effort (<2s, trust_env=False to dodge proxies)
+        # and never raises — ``ollama.reachable=false`` is a valid answer.
+        health = probe_ollama(settings.ollama_base_url, settings.ollama_model)
+        return {
+            "ok": True,
+            "version": __version__,
+            "model": settings.ollama_model,
+            "ollama": health.to_dict(),
+        }
 
     app.include_router(templates.router, prefix="/api", tags=["templates"])
     app.include_router(outline.router, prefix="/api", tags=["outline"])
