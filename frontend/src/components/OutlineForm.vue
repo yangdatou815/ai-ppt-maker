@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
-  createOutline,
+  createOutlineAsync,
+  pollJob,
   classifyTemplate,
   generatePptx,
   parseTableInput,
   triggerBlobDownload,
   uploadImage,
+  type JobStatus,
   type OutlineResponse,
   type OutlineSection,
 } from '../api/client'
@@ -32,13 +34,14 @@ const result = ref<OutlineResponse | null>(null)
 const generating = ref(false)
 const genError = ref<string | null>(null)
 const genStatus = ref<string | null>(null)
+const progressDetail = ref('')
 
 const startedAt = ref<number | null>(null)
 const tickMs = ref(0)
 let tickHandle: ReturnType<typeof setInterval> | null = null
 
 const charCount = computed(() => content.value.length)
-const overLimit = computed(() => charCount.value > 20_000)
+const overLimit = computed(() => charCount.value > 50_000)
 const canSubmit = computed(
   () => !loading.value && content.value.trim().length > 0 && !overLimit.value,
 )
@@ -96,18 +99,52 @@ async function submit() {
   loading.value = true
   error.value = null
   result.value = null
+  progressDetail.value = '提交中...'
   startTicker()
   try {
-    const r = await createOutline({
+    // Use async API with job polling for real progress
+    const { job_id } = await createOutlineAsync({
       content: content.value,
       source_type: sourceType.value,
       language: language.value,
     })
-    result.value = r
+
+    // Poll for progress
+    let job: JobStatus
+    while (true) {
+      await new Promise((r) => setTimeout(r, 500))
+      job = await pollJob(job_id)
+
+      // Update progress from server
+      if (job.progress) {
+        outlineProgress.value = job.progress.percent
+        progressDetail.value = job.progress.detail || job.progress.stage || ''
+      }
+
+      if (job.status === 'completed' || job.status === 'failed') break
+    }
+
+    if (job!.status === 'failed') {
+      throw new Error(job!.error || '生成失败')
+    }
+
+    // Fetch the outline result from /jobs/{id}/result
+    const resultResp = await fetch(
+      `${import.meta.env.VITE_API_BASE ?? '/api'}/jobs/${job_id}/result`,
+    )
+    if (!resultResp.ok) throw new Error('获取结果失败')
+    const data = await resultResp.json()
+    result.value = {
+      outline: data.outline,
+      used_fallback: data.used_fallback,
+      used_model: data.used_model,
+      elapsed_ms: tickMs.value,
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
     loading.value = false
+    progressDetail.value = ''
     stopTicker()
   }
 }
@@ -321,7 +358,7 @@ function removeTable(i: number) {
 
       <button class="primary" :disabled="!canSubmit" @click="submit">
         <span v-if="!loading">生成大纲</span>
-        <span v-else>生成中… {{ elapsedDisplay }}</span>
+        <span v-else>{{ progressDetail || '生成中…' }} {{ elapsedDisplay }}</span>
       </button>
 
       <button

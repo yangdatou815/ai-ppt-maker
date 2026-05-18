@@ -101,6 +101,60 @@ export interface ClassifyTemplateResponse {
   elapsed_ms: number
 }
 
+// --- Async job types ---
+export interface JobProgress {
+  stage: string
+  detail: string
+  percent: number
+}
+
+export interface JobStatus {
+  id: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: JobProgress
+  error: string | null
+  created_at: number
+  completed_at: number | null
+}
+
+export async function createOutlineAsync(args: {
+  content: string
+  source_type?: string
+  language?: 'auto' | 'zh' | 'en'
+}): Promise<{ job_id: string }> {
+  const r = await fetch(`${BASE}/outline/async`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source_type: args.source_type ?? 'text',
+      content: args.content,
+      language: args.language ?? 'auto',
+    }),
+  })
+  if (!r.ok) {
+    let detail = ''
+    try {
+      detail = (await r.json()).detail ?? ''
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`POST /outline/async failed: ${r.status}${detail ? ' — ' + detail : ''}`)
+  }
+  return r.json()
+}
+
+export async function pollJob(jobId: string): Promise<JobStatus> {
+  const r = await fetch(`${BASE}/jobs/${jobId}`)
+  if (!r.ok) throw new Error(`GET /jobs/${jobId} failed: ${r.status}`)
+  return r.json()
+}
+
+export async function getJobResult(jobId: string): Promise<OutlineResponse> {
+  const r = await fetch(`${BASE}/jobs/${jobId}/result`)
+  if (!r.ok) throw new Error(`GET /jobs/${jobId}/result failed: ${r.status}`)
+  return r.json()
+}
+
 export async function classifyTemplate(args: {
   content: string
   language?: 'auto' | 'zh' | 'en'
