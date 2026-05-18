@@ -17,6 +17,7 @@ from app.outline.fallback import rule_based
 from app.outline.llm_client import LlmUnavailableError, OllamaClient
 from app.outline.prompts import SYSTEM_PROMPT, build_user_message
 from app.outline.repair import JsonRepairError, repair
+from app.outline.summarizer import maybe_summarize
 from app.schemas.classify import (
     ALLOWED_TEMPLATES,
     ClassifyTemplateRequest,
@@ -27,7 +28,7 @@ from app.schemas.outline import OutlineDoc
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-_MAX_CONTENT_CHARS = 20_000
+_MAX_CONTENT_CHARS = 50_000
 
 
 class OutlineRequest(BaseModel):
@@ -82,7 +83,8 @@ def create_outline(req: OutlineRequest) -> OutlineResponse:
 
     try:
         client = _client_factory()
-        resp = client.chat_json(SYSTEM_PROMPT, build_user_message(req.content, req.language))
+        content_for_llm = maybe_summarize(req.content, client)
+        resp = client.chat_json(SYSTEM_PROMPT, build_user_message(content_for_llm, req.language))
         used_model = resp.model
         try:
             obj = repair(resp.raw_content)
@@ -112,6 +114,65 @@ def create_outline(req: OutlineRequest) -> OutlineResponse:
         used_model=used_model,
         elapsed_ms=elapsed_ms,
     )
+
+
+class AsyncOutlineResponse(BaseModel):
+    job_id: str
+
+
+@router.post("/outline/async", response_model=AsyncOutlineResponse)
+def create_outline_async(req: OutlineRequest) -> AsyncOutlineResponse:
+    """Submit outline generation as a background job. Poll GET /api/jobs/{job_id}."""
+    if len(req.content) > _MAX_CONTENT_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"content exceeds {_MAX_CONTENT_CHARS} chars; trim or split.",
+        )
+
+    from app.jobs.queue import submit_job
+
+    def _run_outline(job):
+        job.progress.stage = "summarize"
+        job.progress.detail = "正在压缩长文本..."
+        job.progress.percent = 10
+
+        client = _client_factory()
+        content_for_llm = maybe_summarize(req.content, client)
+
+        job.progress.stage = "outline"
+        job.progress.detail = "正在生成大纲..."
+        job.progress.percent = 40
+
+        used_fallback = False
+        used_model = None
+        outline = None
+
+        try:
+            resp = client.chat_json(SYSTEM_PROMPT, build_user_message(content_for_llm, req.language))
+            used_model = resp.model
+            try:
+                obj = repair(resp.raw_content)
+                outline = OutlineDoc.model_validate(obj)
+            except (JsonRepairError, ValidationError):
+                used_fallback = True
+        except LlmUnavailableError:
+            used_fallback = True
+
+        if outline is None:
+            outline = rule_based(req.content)
+
+        job.progress.stage = "done"
+        job.progress.detail = "大纲生成完成"
+        job.progress.percent = 100
+
+        return {
+            "outline": outline.model_dump(),
+            "used_fallback": used_fallback,
+            "used_model": used_model,
+        }
+
+    job_id = submit_job(_run_outline)
+    return AsyncOutlineResponse(job_id=job_id)
 
 
 @router.post("/classify-template", response_model=ClassifyTemplateResponse)

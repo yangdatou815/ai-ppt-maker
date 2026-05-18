@@ -101,7 +101,7 @@ def test_llm_down_falls_back(client):
 
 
 def test_oversize_rejected(client):
-    big = "a" * 30000
+    big = "a" * 60000
     r = client.post("/api/outline", json={"content": big})
     assert r.status_code == 413
 
@@ -178,7 +178,7 @@ def test_classify_empty_rejected(client):
 
 
 def test_classify_oversize_rejected(client):
-    big = "a" * 30000
+    big = "a" * 60000
     r = client.post("/api/classify-template", json={"content": big})
     assert r.status_code == 413
 

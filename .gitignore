@@ -34,3 +34,4 @@ Thumbs.db
 !backend/tests/**/*.pptx
 /tmp/
 backend/storage/workspace/
+.run/
