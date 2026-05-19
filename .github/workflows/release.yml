@@ -135,7 +135,6 @@ jobs:
           generate_release_notes: true
 
       - name: Upload to Gitee Release
-        if: runner.os == 'Linux'
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
