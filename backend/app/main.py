@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -54,8 +55,11 @@ def create_app() -> FastAPI:
 
     # Serve frontend/dist if it exists (built via `npm run build` or scripts/deploy.*).
     # Lets a single uvicorn process serve both API and SPA — used by start.bat / start.sh.
-    repo_root = Path(__file__).resolve().parent.parent.parent
-    dist_dir = repo_root / "frontend" / "dist"
+    if getattr(sys, "frozen", False):
+        bundle_dir = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(sys.executable).parent
+    else:
+        bundle_dir = Path(__file__).resolve().parent.parent.parent
+    dist_dir = bundle_dir / "frontend" / "dist"
     if dist_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=dist_dir / "assets"), name="assets")
 
