@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 
-from app.outline.llm_client import LlmUnavailableError, OllamaClient
+from app.outline.llm_client import OllamaClient
 
 log = logging.getLogger(__name__)
 
@@ -71,11 +71,6 @@ def maybe_summarize(content: str, client: OllamaClient) -> str:
         "Content length %d exceeds threshold %d, summarizing...",
         len(content), SUMMARIZE_THRESHOLD,
     )
-
-    try:
-        resp = client.chat_json.__func__  # check we're not accidentally using JSON mode
-    except AttributeError:
-        pass
 
     # Use a non-JSON call for summarization (plain text output)
     # We need to call Ollama without format:"json" since output is plain text

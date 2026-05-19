@@ -79,7 +79,7 @@ def _cleanup_expired() -> None:
         del _jobs[jid]
 
 
-def submit_job(fn: Callable[["Job"], Any]) -> str:
+def submit_job(fn: Callable[[Job], Any]) -> str:
     """Submit a job function to the thread pool.
 
     The function receives the Job instance and should:

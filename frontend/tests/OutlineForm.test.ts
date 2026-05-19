@@ -27,16 +27,61 @@ const FAKE_OK: OutlineResponse = {
   elapsed_ms: 1234,
 }
 
+const JOB_ID = 'test-job-123'
+
+/** Build a fetch mock that handles the async outline flow. */
+function mockAsyncOutlineFetch(outlineResult: OutlineResponse = FAKE_OK) {
+  return vi.fn(async (url: string) => {
+    const u = String(url)
+    if (u.includes('/outline/async')) {
+      return { ok: true, json: async () => ({ job_id: JOB_ID }) } as unknown as Response
+    }
+    if (u.includes(`/jobs/${JOB_ID}/result`)) {
+      return {
+        ok: true,
+        json: async () => ({
+          outline: outlineResult.outline,
+          used_fallback: outlineResult.used_fallback,
+          used_model: outlineResult.used_model,
+        }),
+      } as unknown as Response
+    }
+    if (u.includes(`/jobs/${JOB_ID}`)) {
+      return {
+        ok: true,
+        json: async () => ({
+          id: JOB_ID,
+          status: 'completed',
+          progress: { stage: 'done', detail: '', percent: 100 },
+          error: null,
+          created_at: 0,
+          completed_at: 1,
+        }),
+      } as unknown as Response
+    }
+    return { ok: false, status: 404, json: async () => ({}) } as unknown as Response
+  }) as unknown as typeof fetch
+}
+
 const originalFetch = global.fetch
 
 beforeEach(() => {
-  vi.useRealTimers()
+  vi.useFakeTimers()
 })
 
 afterEach(() => {
   global.fetch = originalFetch
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
+
+/** Advance timers and flush all pending promises (needed for polling loops). */
+async function advanceAndFlush(ms = 600) {
+  vi.advanceTimersByTime(ms)
+  await flushPromises()
+  vi.advanceTimersByTime(ms)
+  await flushPromises()
+}
 
 describe('OutlineForm', () => {
   it('disables submit when content is empty', () => {
@@ -45,29 +90,32 @@ describe('OutlineForm', () => {
     expect((btn.element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('flags content over 20k chars and disables submit', async () => {
+  it('flags content over 50k chars and disables submit', async () => {
     const w = mount(OutlineForm)
-    await w.find('textarea').setValue('a'.repeat(20_001))
+    await w.find('textarea').setValue('a'.repeat(50_001))
     expect(w.find('.char-count').classes()).toContain('over')
     expect((w.find('button.primary').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('calls /api/outline and renders the result', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => FAKE_OK,
-    })) as unknown as typeof fetch
+  it('calls /api/outline/async and renders the result', async () => {
+    const fetchMock = mockAsyncOutlineFetch()
     global.fetch = fetchMock
 
     const w = mount(OutlineForm)
     await w.find('textarea').setValue('hello world')
     await w.find('button.primary').trigger('click')
-    await flushPromises()
+    await advanceAndFlush()
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(url).toContain('/outline')
-    const body = JSON.parse((init as RequestInit).body as string)
+    expect(fetchMock).toHaveBeenCalled()
+    const urls = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c: unknown[]) => String(c[0]),
+    )
+    expect(urls.some((u: string) => u.includes('/outline/async'))).toBe(true)
+
+    const outlineCall = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => String(c[0]).includes('/outline/async'),
+    )!
+    const body = JSON.parse((outlineCall[1] as RequestInit).body as string)
     expect(body.content).toBe('hello world')
     expect(body.source_type).toBe('text')
     expect(body.language).toBe('auto')
@@ -80,15 +128,12 @@ describe('OutlineForm', () => {
 
   it('shows fallback badge when used_fallback=true', async () => {
     const fb: OutlineResponse = { ...FAKE_OK, used_fallback: true, used_model: null }
-    global.fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => fb,
-    })) as unknown as typeof fetch
+    global.fetch = mockAsyncOutlineFetch(fb)
 
     const w = mount(OutlineForm)
     await w.find('textarea').setValue('x')
     await w.find('button.primary').trigger('click')
-    await flushPromises()
+    await advanceAndFlush()
 
     const badge = w.find('.badge')
     expect(badge.classes()).toContain('fallback')
@@ -96,20 +141,34 @@ describe('OutlineForm', () => {
   })
 
   it('renders error message when API fails', async () => {
-    global.fetch = vi.fn(async () => ({
-      ok: false,
-      status: 413,
-      json: async () => ({ detail: 'too long' }),
-    })) as unknown as typeof fetch
+    global.fetch = vi.fn(async (url: string) => {
+      const u = String(url)
+      if (u.includes('/outline/async')) {
+        return { ok: true, json: async () => ({ job_id: JOB_ID }) } as unknown as Response
+      }
+      if (u.includes(`/jobs/${JOB_ID}`)) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: JOB_ID,
+            status: 'failed',
+            progress: { stage: 'error', detail: '', percent: 0 },
+            error: '生成失败',
+            created_at: 0,
+            completed_at: 1,
+          }),
+        } as unknown as Response
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as unknown as Response
+    }) as unknown as typeof fetch
 
     const w = mount(OutlineForm)
     await w.find('textarea').setValue('x')
     await w.find('button.primary').trigger('click')
-    await flushPromises()
+    await advanceAndFlush()
 
     expect(w.find('.err').exists()).toBe(true)
-    expect(w.find('.err').text()).toContain('413')
-    expect(w.find('.err').text()).toContain('too long')
+    expect(w.find('.err').text()).toContain('生成失败')
   })
 
   it('load-sample button populates textarea', async () => {
@@ -120,18 +179,13 @@ describe('OutlineForm', () => {
   })
 
   it('hides the generate button when no template is selected', async () => {
-    global.fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => FAKE_OK,
-    })) as unknown as typeof fetch
+    global.fetch = mockAsyncOutlineFetch()
 
     const w = mount(OutlineForm, { props: { template: null } })
     await w.find('textarea').setValue('x')
     await w.find('button.primary').trigger('click')
-    await flushPromises()
+    await advanceAndFlush()
 
-    // After result, two .primary buttons exist (submit + generate). The generate
-    // one should be disabled and the hint visible.
     const buttons = w.findAll('.result-actions button.primary')
     expect(buttons).toHaveLength(1)
     expect((buttons[0].element as HTMLButtonElement).disabled).toBe(true)
@@ -143,21 +197,47 @@ describe('OutlineForm', () => {
       type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     })
     const fetchMock = vi.fn(async (url: string) => {
-      if (String(url).endsWith('/outline')) {
-        return { ok: true, json: async () => FAKE_OK } as unknown as Response
+      const u = String(url)
+      if (u.includes('/outline/async')) {
+        return { ok: true, json: async () => ({ job_id: JOB_ID }) } as unknown as Response
       }
-      // /generate
-      return {
-        ok: true,
-        blob: async () => fakeBlob,
-        headers: {
-          get: (k: string) => {
-            if (k === 'Content-Disposition') return 'attachment; filename="Demo.pptx"'
-            if (k === 'X-Render-Elapsed-Ms') return '42'
-            return null
+      if (u.includes(`/jobs/${JOB_ID}/result`)) {
+        return {
+          ok: true,
+          json: async () => ({
+            outline: FAKE_OK.outline,
+            used_fallback: false,
+            used_model: 'qwen2.5:7b-instruct',
+          }),
+        } as unknown as Response
+      }
+      if (u.includes(`/jobs/${JOB_ID}`)) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: JOB_ID,
+            status: 'completed',
+            progress: { stage: 'done', detail: '', percent: 100 },
+            error: null,
+            created_at: 0,
+            completed_at: 1,
+          }),
+        } as unknown as Response
+      }
+      if (u.includes('/generate')) {
+        return {
+          ok: true,
+          blob: async () => fakeBlob,
+          headers: {
+            get: (k: string) => {
+              if (k === 'Content-Disposition') return 'attachment; filename="Demo.pptx"'
+              if (k === 'X-Render-Elapsed-Ms') return '42'
+              return null
+            },
           },
-        },
-      } as unknown as Response
+        } as unknown as Response
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as unknown as Response
     }) as unknown as typeof fetch
     global.fetch = fetchMock
 
@@ -165,7 +245,6 @@ describe('OutlineForm', () => {
       .fn()
       .mockReturnValue('blob:fake') as unknown as typeof URL.createObjectURL
     const revokeUrl = vi.fn() as unknown as typeof URL.revokeObjectURL
-    // jsdom doesn't define these — assign them so component code can call them
     URL.createObjectURL = createUrl
     URL.revokeObjectURL = revokeUrl
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
@@ -173,18 +252,18 @@ describe('OutlineForm', () => {
     const w = mount(OutlineForm, { props: { template: 'executive-dark' } })
     await w.find('textarea').setValue('hello')
     await w.find('button.primary').trigger('click')
-    await flushPromises()
+    await advanceAndFlush()
 
     const genBtn = w.find('.result-actions button.primary')
     expect((genBtn.element as HTMLButtonElement).disabled).toBe(false)
     await genBtn.trigger('click')
+    vi.advanceTimersByTime(200)
     await flushPromises()
 
     const calls = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls
-    expect(calls.length).toBe(2)
-    const [genUrl, genInit] = calls[1]
-    expect(String(genUrl)).toContain('/generate')
-    const body = JSON.parse((genInit as RequestInit).body as string)
+    const genCall = calls.find((c: unknown[]) => String(c[0]).includes('/generate'))
+    expect(genCall).toBeTruthy()
+    const body = JSON.parse((genCall![1] as RequestInit).body as string)
     expect(body.template).toBe('executive-dark')
     expect(body.outline.title).toBe('Demo')
 
@@ -192,28 +271,54 @@ describe('OutlineForm', () => {
     expect(clickSpy).toHaveBeenCalled()
     expect(w.find('.result-actions .ok').text()).toContain('Demo.pptx')
 
-    // revoke is queued via setTimeout(0), exercise it
-    await new Promise((r) => setTimeout(r, 0))
+    vi.advanceTimersByTime(1)
+    await flushPromises()
     expect(revokeUrl).toHaveBeenCalled()
   })
 
   it('M2-3: uploads an image and attaches it to the section', async () => {
     const fetchMock = vi.fn(async (url: string) => {
-      if (String(url).endsWith('/outline')) {
-        return { ok: true, json: async () => FAKE_OK } as unknown as Response
+      const u = String(url)
+      if (u.includes('/outline/async')) {
+        return { ok: true, json: async () => ({ job_id: JOB_ID }) } as unknown as Response
       }
-      // /upload
-      return {
-        ok: true,
-        json: async () => ({ file_id: 'abc.png', bytes: 42, content_type: 'image/png' }),
-      } as unknown as Response
+      if (u.includes(`/jobs/${JOB_ID}/result`)) {
+        return {
+          ok: true,
+          json: async () => ({
+            outline: FAKE_OK.outline,
+            used_fallback: false,
+            used_model: 'qwen2.5:7b-instruct',
+          }),
+        } as unknown as Response
+      }
+      if (u.includes(`/jobs/${JOB_ID}`)) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: JOB_ID,
+            status: 'completed',
+            progress: { stage: 'done', detail: '', percent: 100 },
+            error: null,
+            created_at: 0,
+            completed_at: 1,
+          }),
+        } as unknown as Response
+      }
+      if (u.includes('/upload')) {
+        return {
+          ok: true,
+          json: async () => ({ file_id: 'abc.png', bytes: 42, content_type: 'image/png' }),
+        } as unknown as Response
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as unknown as Response
     }) as unknown as typeof fetch
     global.fetch = fetchMock
 
     const w = mount(OutlineForm, { props: { template: 'executive-dark' } })
     await w.find('textarea').setValue('hello')
     await w.find('button.primary').trigger('click')
-    await flushPromises()
+    await advanceAndFlush()
 
     const fileInput = w.find('input[type="file"]')
     expect(fileInput.exists()).toBe(true)
@@ -224,26 +329,22 @@ describe('OutlineForm', () => {
     await flushPromises()
 
     const calls = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls
-    expect(String(calls[1][0])).toContain('/upload')
-    expect((calls[1][1] as RequestInit).body).toBeInstanceOf(FormData)
+    const uploadCall = calls.find((c: unknown[]) => String(c[0]).includes('/upload'))
+    expect(uploadCall).toBeTruthy()
+    expect((uploadCall![1] as RequestInit).body).toBeInstanceOf(FormData)
 
-    // Chip rendered, file_id stored on section
     expect(w.find('.att-chip.att-image').exists()).toBe(true)
     expect(w.find('.att-chip.att-image').text()).toContain('shot.png')
   })
 
   it('M2-3: opens table editor, parses TSV, attaches table', async () => {
-    global.fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => FAKE_OK,
-    })) as unknown as typeof fetch
+    global.fetch = mockAsyncOutlineFetch()
 
     const w = mount(OutlineForm, { props: { template: 'executive-dark' } })
     await w.find('textarea').setValue('hello')
     await w.find('button.primary').trigger('click')
-    await flushPromises()
+    await advanceAndFlush()
 
-    // Click "+ 添加表格"
     const addBtns = w.findAll('button.att-btn')
     const tableBtn = addBtns.find((b) => b.text().includes('添加表格'))
     expect(tableBtn).toBeTruthy()
@@ -256,7 +357,6 @@ describe('OutlineForm', () => {
     await w.find('.table-editor input[type="text"]').setValue('quarterly')
     await w.find('.table-editor button.primary').trigger('click')
 
-    // Editor closed; chip appears.
     expect(w.find('.table-editor').exists()).toBe(false)
     expect(w.find('.att-chip.att-table').exists()).toBe(true)
     expect(w.find('.att-chip.att-table').text()).toContain('2 列')
@@ -279,7 +379,6 @@ describe('OutlineForm', () => {
 
     const w = mount(OutlineForm)
     await w.find('textarea').setValue('REST API design and architecture')
-    // The auto-pick button is the second `button.link` (load-sample is first).
     const autoPick = w.findAll('button.link')[1]
     expect(autoPick.text()).toContain('AI 选模板')
     await autoPick.trigger('click')
@@ -318,4 +417,3 @@ describe('OutlineForm', () => {
     expect(w.find('.classify-pill .badge-fallback').exists()).toBe(true)
   })
 })
-

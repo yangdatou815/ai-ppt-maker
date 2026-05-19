@@ -619,8 +619,6 @@ REM Last resort: scan WinGet packages and Program Files trees.
 if defined LOG echo [LOCATE-PYTHON %TIME%] starting recursive probe >> "%LOG%"
 for %%R in (
     "%LOCALAPPDATA%\Microsoft\WinGet\Packages"
-    "%ProgramFiles%\Python39"
-    "%ProgramFiles%\Python310"
     "%ProgramFiles%\Python311"
     "%ProgramFiles%\Python312"
     "%ProgramFiles%\Python313"
