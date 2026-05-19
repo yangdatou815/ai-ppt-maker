@@ -104,4 +104,3 @@ onMounted(async () => {
 .viewnav button.active { background: #111; color: #f6f4ee; }
 .viewnav button:not(.active):hover { background: rgba(0,0,0,0.05); }
 </style>
-

@@ -1,4 +1,5 @@
 """FastAPI entry point."""
+
 from __future__ import annotations
 
 import logging
@@ -78,7 +79,9 @@ def create_app() -> FastAPI:
     else:
         log.info("No frontend/dist found — backend serves API only (run `npm run build`)")
 
-    log.info("ai-ppt-maker backend %s ready (templates_dir=%s)", __version__, settings.templates_dir)
+    log.info(
+        "ai-ppt-maker backend %s ready (templates_dir=%s)", __version__, settings.templates_dir
+    )
     return app
 
 

@@ -1,4 +1,5 @@
 """Integration tests for POST /api/upload."""
+
 from __future__ import annotations
 
 import struct
@@ -37,6 +38,7 @@ def upload_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient
     monkeypatch.setenv("MAX_UPLOAD_MB", "1")
     # Bust the cached settings singleton.
     import app.config as cfg
+
     cfg._settings = None
     yield TestClient(create_app())
     cfg._settings = None

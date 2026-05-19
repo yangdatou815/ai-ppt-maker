@@ -1,4 +1,5 @@
 """Templates registry — scans backend/templates/<name>/layout-mapping.yaml."""
+
 from __future__ import annotations
 
 import logging
@@ -123,7 +124,8 @@ def get_template_thumbnail(name: str) -> FileResponse:
     path = settings.templates_dir / name / "thumbnail.png"
     if not path.is_file():
         raise HTTPException(
-            status_code=404, detail=f"template '{name}' has no thumbnail",
+            status_code=404,
+            detail=f"template '{name}' has no thumbnail",
         )
     return FileResponse(
         path,

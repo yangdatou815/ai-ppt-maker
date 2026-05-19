@@ -1,4 +1,5 @@
 """OutlineDoc and friends — see docs/architecture.md §3.1."""
+
 from __future__ import annotations
 
 from typing import Any, Literal

@@ -13,6 +13,7 @@ When the operator flips the toggle on (from the UI or a curl), we:
 Flipping back off restores the prior level and detaches the buffer
 handler — no permanent overhead for production-style runs.
 """
+
 from __future__ import annotations
 
 import asyncio

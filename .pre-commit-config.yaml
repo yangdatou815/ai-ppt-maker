@@ -40,7 +40,7 @@ repos:
 
       - id: frontend-tests
         name: Run frontend tests
-        entry: bash -c 'cd frontend && npx vitest run --reporter=dot'
+        entry: bash -c 'cd frontend && npx vitest run --reporter=verbose 2>&1 | tail -5'
         language: system
         pass_filenames: false
         files: ^frontend/

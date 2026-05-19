@@ -1,4 +1,5 @@
 """Outline generation orchestrator: source -> LLM (with repair) -> fallback."""
+
 from __future__ import annotations
 
 import logging
@@ -73,7 +74,9 @@ def create_outline(req: OutlineRequest) -> OutlineResponse:
 
     log.debug(
         "outline request: source_type=%s language=%s content_chars=%d",
-        req.source_type, req.language, len(req.content),
+        req.source_type,
+        req.language,
+        len(req.content),
     )
 
     t0 = time.perf_counter()
@@ -148,7 +151,9 @@ def create_outline_async(req: OutlineRequest) -> AsyncOutlineResponse:
         outline = None
 
         try:
-            resp = client.chat_json(SYSTEM_PROMPT, build_user_message(content_for_llm, req.language))
+            resp = client.chat_json(
+                SYSTEM_PROMPT, build_user_message(content_for_llm, req.language)
+            )
             used_model = resp.model
             try:
                 obj = repair(resp.raw_content)
@@ -192,7 +197,8 @@ def classify_template(req: ClassifyTemplateRequest) -> ClassifyTemplateResponse:
 
     log.debug(
         "classify request: language=%s content_chars=%d",
-        req.language, len(req.content),
+        req.language,
+        len(req.content),
     )
 
     t0 = time.perf_counter()
@@ -238,7 +244,11 @@ def classify_template(req: ClassifyTemplateRequest) -> ClassifyTemplateResponse:
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     log.info(
         "classify done: template=%s confidence=%.2f fallback=%s model=%s elapsed_ms=%d",
-        template, confidence, used_fallback, used_model, elapsed_ms,
+        template,
+        confidence,
+        used_fallback,
+        used_model,
+        elapsed_ms,
     )
     return ClassifyTemplateResponse(
         template=template,

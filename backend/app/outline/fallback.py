@@ -4,6 +4,7 @@ Used when the LLM is unavailable or returns un-repairable output (TD-2).
 Splits source text by Markdown headings (##/###) or blank-line paragraphs,
 keeping the user productive even without Ollama.
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,8 +55,7 @@ def _split_into_sections(text: str) -> list[tuple[str, str]]:
 def _bullets_from_body(body: str, language: str) -> list[Bullet]:
     bullets: list[Bullet] = []
     line_items = [
-        m.group(1).strip()
-        for m in re.finditer(r"^[\s]*[-*•·]\s+(.+?)\s*$", body, re.MULTILINE)
+        m.group(1).strip() for m in re.finditer(r"^[\s]*[-*•·]\s+(.+?)\s*$", body, re.MULTILINE)
     ]
     if line_items:
         for it in line_items[:5]:
@@ -95,7 +95,10 @@ def rule_based(content: str, *, fallback_title: str | None = None) -> OutlineDoc
 
     log.debug(
         "fallback: lang=%s input_chars=%d sections_raw=%d sections_kept=%d",
-        language, len(text), len(sections_raw), len(sections),
+        language,
+        len(text),
+        len(sections_raw),
+        len(sections),
     )
     return OutlineDoc(
         title=title or ("Untitled" if language == "en" else "未命名"),

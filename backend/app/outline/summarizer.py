@@ -9,6 +9,7 @@ This solves:
 - Quality degradation on long inputs
 - Allows accepting inputs > current 20k char limit
 """
+
 from __future__ import annotations
 
 import logging
@@ -69,7 +70,8 @@ def maybe_summarize(content: str, client: OllamaClient) -> str:
 
     log.info(
         "Content length %d exceeds threshold %d, summarizing...",
-        len(content), SUMMARIZE_THRESHOLD,
+        len(content),
+        SUMMARIZE_THRESHOLD,
     )
 
     # Use a non-JSON call for summarization (plain text output)
@@ -100,7 +102,9 @@ def maybe_summarize(content: str, client: OllamaClient) -> str:
                 return content
             log.info(
                 "Summarized: %d chars -> %d chars (%.0f%% reduction)",
-                len(content), len(summary), (1 - len(summary) / len(content)) * 100,
+                len(content),
+                len(summary),
+                (1 - len(summary) / len(content)) * 100,
             )
             return summary
     except (httpx.HTTPError, ValueError, KeyError) as exc:

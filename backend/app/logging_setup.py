@@ -19,6 +19,7 @@ Design (architecture §7 — Observability):
     - Aligns uvicorn's own loggers with the project level so request logs and
       app logs share one switch.
 """
+
 from __future__ import annotations
 
 import logging

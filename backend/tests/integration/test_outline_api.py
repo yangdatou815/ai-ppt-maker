@@ -1,4 +1,5 @@
 """Integration tests for /api/outline with stub Ollama client."""
+
 import json
 
 import pytest
@@ -123,8 +124,9 @@ def test_validation_failure_falls_back(client):
 # ---------- /api/classify-template -----------------------------------------
 
 
-def _classify_json(template: str = "tech-blue", confidence: float = 0.92,
-                   reason: str = "API design content") -> str:
+def _classify_json(
+    template: str = "tech-blue", confidence: float = 0.92, reason: str = "API design content"
+) -> str:
     return json.dumps(
         {"template": template, "confidence": confidence, "reason": reason},
         ensure_ascii=False,

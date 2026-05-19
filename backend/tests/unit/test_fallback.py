@@ -2,7 +2,9 @@ from app.outline.fallback import rule_based
 
 
 def test_chinese_paragraphs():
-    text = "我们今年发布了新一代产品 X。它解决了三大痛点。\n\n第一是性能。第二是成本。第三是可维护性。"
+    text = (
+        "我们今年发布了新一代产品 X。它解决了三大痛点。\n\n第一是性能。第二是成本。第三是可维护性。"
+    )
     o = rule_based(text)
     assert o.language == "zh"
     assert o.sections

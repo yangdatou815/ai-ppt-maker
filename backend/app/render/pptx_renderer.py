@@ -18,6 +18,7 @@ Design tokens come from ``backend/templates/<name>/layout-mapping.yaml``
 (``theme:`` + ``fonts:``). Hex colours are parsed defensively — unknown keys
 fall back to a sensible default rather than crashing the request.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -142,15 +143,28 @@ def _cover_slide(prs: Presentation, theme: _Theme, doc: OutlineDoc) -> None:
     # Accent rule above the title
     _add_rect(slide, Inches(1.0), Inches(2.4), Inches(0.6), Inches(0.06), theme.accent)
     _add_text(
-        slide, Inches(1.0), Inches(2.55), Inches(11.3), Inches(1.6),
+        slide,
+        Inches(1.0),
+        Inches(2.55),
+        Inches(11.3),
+        Inches(1.6),
         text=doc.title,
-        font=theme.heading_font, size_pt=54, color=theme.text, bold=True,
+        font=theme.heading_font,
+        size_pt=54,
+        color=theme.text,
+        bold=True,
     )
     if doc.subtitle:
         _add_text(
-            slide, Inches(1.0), Inches(4.2), Inches(11.3), Inches(0.8),
+            slide,
+            Inches(1.0),
+            Inches(4.2),
+            Inches(11.3),
+            Inches(0.8),
             text=doc.subtitle,
-            font=theme.body_font, size_pt=22, color=theme.text_mute,
+            font=theme.body_font,
+            size_pt=22,
+            color=theme.text_mute,
         )
     # Footer line
     parts = [
@@ -161,23 +175,43 @@ def _cover_slide(prs: Presentation, theme: _Theme, doc: OutlineDoc) -> None:
     footer = "  ·  ".join(p for p in parts if p)
     if footer:
         _add_text(
-            slide, Inches(1.0), Inches(6.6), Inches(11.3), Inches(0.4),
+            slide,
+            Inches(1.0),
+            Inches(6.6),
+            Inches(11.3),
+            Inches(0.4),
             text=footer,
-            font=theme.body_font, size_pt=12, color=theme.text_mute,
+            font=theme.body_font,
+            size_pt=12,
+            color=theme.text_mute,
         )
 
 
 def _section_header(slide, theme: _Theme, idx: int, total: int, heading: str) -> None:
     """Common top-of-slide header: number gutter + heading + accent rule."""
     _add_text(
-        slide, Inches(0.7), Inches(0.55), Inches(2.0), Inches(0.5),
+        slide,
+        Inches(0.7),
+        Inches(0.55),
+        Inches(2.0),
+        Inches(0.5),
         text=f"{idx:02d} / {total:02d}",
-        font=theme.body_font, size_pt=12, color=theme.accent, bold=True,
+        font=theme.body_font,
+        size_pt=12,
+        color=theme.accent,
+        bold=True,
     )
     _add_text(
-        slide, Inches(0.7), Inches(1.05), Inches(11.9), Inches(1.0),
+        slide,
+        Inches(0.7),
+        Inches(1.05),
+        Inches(11.9),
+        Inches(1.0),
         text=heading,
-        font=theme.heading_font, size_pt=34, color=theme.primary, bold=True,
+        font=theme.heading_font,
+        size_pt=34,
+        color=theme.primary,
+        bold=True,
     )
     _add_rect(slide, Inches(0.7), Inches(2.05), Inches(0.6), Inches(0.05), theme.accent)
 
@@ -211,8 +245,13 @@ def _draw_bullets(slide, theme: _Theme, section: Section, *, left, top, width, h
 
 def _bullets_section_slide(slide, theme: _Theme, section: Section) -> None:
     _draw_bullets(
-        slide, theme, section,
-        left=Inches(0.9), top=Inches(2.45), width=Inches(11.5), height=Inches(4.5),
+        slide,
+        theme,
+        section,
+        left=Inches(0.9),
+        top=Inches(2.45),
+        width=Inches(11.5),
+        height=Inches(4.5),
     )
 
 
@@ -234,12 +273,12 @@ def _resolve_upload(file_id: str | None, uploads_dir: Path | None) -> Path | Non
 # box to occupy between 38.2% and 61.8% of that width, so the text/image
 # proportion always falls inside the golden window even for extreme aspects.
 _PHI = 1.618
-_CONTENT_LEFT = 0.7      # inches
-_CONTENT_TOP = 2.45      # inches
-_CONTENT_WIDTH = 11.93   # inches
-_CONTENT_HEIGHT = 4.55   # inches
-_GUTTER = 0.4            # inches between text column and image
-_IMG_MIN_FRAC = 1.0 / (1.0 + _PHI)   # ≈ 0.382
+_CONTENT_LEFT = 0.7  # inches
+_CONTENT_TOP = 2.45  # inches
+_CONTENT_WIDTH = 11.93  # inches
+_CONTENT_HEIGHT = 4.55  # inches
+_GUTTER = 0.4  # inches between text column and image
+_IMG_MIN_FRAC = 1.0 / (1.0 + _PHI)  # ≈ 0.382
 _IMG_MAX_FRAC = _PHI / (1.0 + _PHI)  # ≈ 0.618
 
 
@@ -272,7 +311,10 @@ def _image_box_for_aspect(aspect: float) -> tuple[float, float, float, float]:
 
 
 def _image_section_slide(
-    slide, theme: _Theme, section: Section, uploads_dir: Path | None,
+    slide,
+    theme: _Theme,
+    section: Section,
+    uploads_dir: Path | None,
 ) -> None:
     """Render an image section.
 
@@ -303,7 +345,9 @@ def _image_section_slide(
 
     # Bullets on the left, width derived from layout.
     _draw_bullets(
-        slide, theme, section,
+        slide,
+        theme,
+        section,
         left=Inches(_CONTENT_LEFT),
         top=Inches(_CONTENT_TOP),
         width=Inches(text_w_in),
@@ -326,21 +370,35 @@ def _image_section_slide(
 
     if img_path is None:
         _add_rect(slide, img_left, img_top, img_w, img_h, theme.text_mute)
-        label = section.image.caption if (section.image and section.image.caption) else (
-            f"[image: {file_id}]" if file_id else "[image placeholder]"
+        label = (
+            section.image.caption
+            if (section.image and section.image.caption)
+            else (f"[image: {file_id}]" if file_id else "[image placeholder]")
         )
         _add_text(
-            slide, img_left, img_top + Inches(img_h_in / 2 - 0.3), img_w, Inches(0.6),
+            slide,
+            img_left,
+            img_top + Inches(img_h_in / 2 - 0.3),
+            img_w,
+            Inches(0.6),
             text=label,
-            font=theme.body_font, size_pt=14, color=theme.neutral,
+            font=theme.body_font,
+            size_pt=14,
+            color=theme.neutral,
             align=PP_ALIGN.CENTER,
         )
 
     if section.image and section.image.caption and img_path is not None:
         _add_text(
-            slide, img_left, img_top + img_h + Inches(0.05), img_w, Inches(0.4),
+            slide,
+            img_left,
+            img_top + img_h + Inches(0.05),
+            img_w,
+            Inches(0.4),
             text=section.image.caption,
-            font=theme.body_font, size_pt=12, color=theme.text_mute,
+            font=theme.body_font,
+            size_pt=12,
+            color=theme.text_mute,
             align=PP_ALIGN.CENTER,
         )
 
@@ -350,7 +408,10 @@ _SLIDE_WIDTH = 13.333
 
 
 def _table_column_widths(
-    headers: list[str], rows: list[list[str]], *, max_total_in: float = 11.9,
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    max_total_in: float = 11.9,
 ) -> list[float]:
     """Compute per-column widths in inches, sized to content.
 
@@ -432,16 +493,28 @@ def _table_section_slide(slide, theme: _Theme, section: Section) -> None:
 
     if table.caption:
         _add_text(
-            slide, left, top + height + Inches(0.1), width, Inches(0.4),
+            slide,
+            left,
+            top + height + Inches(0.1),
+            width,
+            Inches(0.4),
             text=table.caption,
-            font=theme.body_font, size_pt=12, color=theme.text_mute,
+            font=theme.body_font,
+            size_pt=12,
+            color=theme.text_mute,
         )
 
     if len(table.rows) > max_rows:
         _add_text(
-            slide, left, top + height + Inches(0.5), width, Inches(0.35),
+            slide,
+            left,
+            top + height + Inches(0.5),
+            width,
+            Inches(0.35),
             text=f"… {len(table.rows) - max_rows} more rows truncated",
-            font=theme.body_font, size_pt=10, color=theme.text_mute,
+            font=theme.body_font,
+            size_pt=10,
+            color=theme.text_mute,
         )
 
 
@@ -467,7 +540,11 @@ def _pick_layout(section: Section) -> str:
 
 
 def _section_slide(
-    prs: Presentation, theme: _Theme, idx: int, total: int, section: Section,
+    prs: Presentation,
+    theme: _Theme,
+    idx: int,
+    total: int,
+    section: Section,
     uploads_dir: Path | None,
 ) -> None:
     slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -495,14 +572,27 @@ def _closing_slide(prs: Presentation, theme: _Theme, doc: OutlineDoc) -> None:
     _add_rect(slide, Inches(1.0), Inches(2.4), Inches(0.6), Inches(0.06), theme.accent)
     label = "Thank you" if doc.language == "en" else "谢谢观看"
     _add_text(
-        slide, Inches(1.0), Inches(2.55), Inches(11.3), Inches(1.4),
+        slide,
+        Inches(1.0),
+        Inches(2.55),
+        Inches(11.3),
+        Inches(1.4),
         text=label,
-        font=theme.heading_font, size_pt=54, color=theme.text, bold=True,
+        font=theme.heading_font,
+        size_pt=54,
+        color=theme.text,
+        bold=True,
     )
     _add_text(
-        slide, Inches(1.0), Inches(4.0), Inches(11.3), Inches(0.8),
+        slide,
+        Inches(1.0),
+        Inches(4.0),
+        Inches(11.3),
+        Inches(0.8),
         text=doc.title,
-        font=theme.body_font, size_pt=22, color=theme.text_mute,
+        font=theme.body_font,
+        size_pt=22,
+        color=theme.text_mute,
     )
 
 
@@ -550,7 +640,8 @@ def render_outline(
             stripped = _strip_existing_slides(prs)
             log.info(
                 "render: loaded master=%s stripped_sample_slides=%d",
-                master_path.name, stripped,
+                master_path.name,
+                stripped,
             )
         except Exception as exc:  # noqa: BLE001 — degrade, don't fail the request
             log.warning("master.pptx load failed (%s); falling back to blank", exc)
@@ -570,6 +661,9 @@ def render_outline(
     prs.save(buf)
     log.info(
         "render done: template=%s sections=%d total_slides=%d size_kb=%d",
-        template.name, total, total + 2, len(buf.getvalue()) // 1024,
+        template.name,
+        total,
+        total + 2,
+        len(buf.getvalue()) // 1024,
     )
     return buf.getvalue()

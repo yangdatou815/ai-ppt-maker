@@ -1,4 +1,5 @@
 """Tests for OutlineDoc schema robustness against common LLM quirks."""
+
 from __future__ import annotations
 
 import pytest

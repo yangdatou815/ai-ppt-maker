@@ -1,4 +1,5 @@
 """Async job status & result endpoints."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

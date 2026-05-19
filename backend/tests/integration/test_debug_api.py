@@ -1,4 +1,5 @@
 """Integration tests for the runtime debug toggle + log SSE."""
+
 from __future__ import annotations
 
 import logging

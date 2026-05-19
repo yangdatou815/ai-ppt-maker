@@ -8,7 +8,7 @@ def test_plain_json():
 
 
 def test_fenced_json():
-    raw = "```json\n{\"a\": 1}\n```"
+    raw = '```json\n{"a": 1}\n```'
     assert repair(raw) == {"a": 1}
 
 

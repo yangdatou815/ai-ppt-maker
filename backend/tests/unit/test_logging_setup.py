@@ -1,4 +1,5 @@
 """Tests for app.logging_setup — the operator-facing log switch."""
+
 from __future__ import annotations
 
 import logging

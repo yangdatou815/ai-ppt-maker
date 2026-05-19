@@ -1,4 +1,5 @@
 """Integration tests for ``POST /api/generate``."""
+
 from __future__ import annotations
 
 import io

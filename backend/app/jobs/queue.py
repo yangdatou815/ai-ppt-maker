@@ -6,6 +6,7 @@ Design:
 - Frontend polls GET /api/jobs/{job_id} for progress
 - Results expire after 1 hour
 """
+
 from __future__ import annotations
 
 import logging
@@ -72,7 +73,8 @@ def _cleanup_expired() -> None:
     """Remove jobs older than expiry threshold."""
     now = time.time()
     expired = [
-        jid for jid, j in _jobs.items()
+        jid
+        for jid, j in _jobs.items()
         if j.completed_at and (now - j.completed_at) > _EXPIRE_SECONDS
     ]
     for jid in expired:

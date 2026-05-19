@@ -1,4 +1,5 @@
 """Unit tests for app.render.pptx_renderer."""
+
 from __future__ import annotations
 
 import io
@@ -132,23 +133,22 @@ def _png(width: int, height: int) -> bytes:
 
 
 def test_pick_layout_explicit_hint_wins():
-    s = Section(heading="h", layout_hint="content-image",
-                image=ImageRef(file_id="x.png"))
+    s = Section(heading="h", layout_hint="content-image", image=ImageRef(file_id="x.png"))
     assert _pick_layout(s) == "content-image"
 
 
 def test_pick_layout_falls_back_when_hint_mismatches_payload():
     # hint says image but no image attached → fall through to inference (bullets)
-    s = Section(heading="h", layout_hint="content-image",
-                bullets=[Bullet(text="b")])
+    s = Section(heading="h", layout_hint="content-image", bullets=[Bullet(text="b")])
     assert _pick_layout(s) == "content-bullets"
 
 
 def test_pick_layout_infers_from_payload():
     assert _pick_layout(Section(heading="h", image=ImageRef(file_id="a.png"))) == "content-image"
-    assert _pick_layout(
-        Section(heading="h", table=TableData(headers=["a"], rows=[["1"]]))
-    ) == "content-table"
+    assert (
+        _pick_layout(Section(heading="h", table=TableData(headers=["a"], rows=[["1"]])))
+        == "content-table"
+    )
     assert _pick_layout(Section(heading="h")) == "content-bullets"
 
 
@@ -316,7 +316,8 @@ def test_render_image_section_preserves_aspect_ratio_landscape(tmp_path: Path):
     uploads.mkdir()
     (uploads / "wide.png").write_bytes(_png(200, 100))  # 2:1
     doc = OutlineDoc(
-        title="I", language="en",
+        title="I",
+        language="en",
         sections=[Section(heading="x", image=ImageRef(file_id="wide.png"))],
     )
     data = render_outline(doc, _template(), uploads_dir=uploads)
@@ -333,7 +334,8 @@ def test_render_image_section_preserves_aspect_ratio_portrait(tmp_path: Path):
     uploads.mkdir()
     (uploads / "tall.png").write_bytes(_png(100, 200))  # 1:2
     doc = OutlineDoc(
-        title="I", language="en",
+        title="I",
+        language="en",
         sections=[Section(heading="x", image=ImageRef(file_id="tall.png"))],
     )
     data = render_outline(doc, _template(), uploads_dir=uploads)
@@ -377,7 +379,8 @@ def test_table_column_widths_scaled_down_when_total_exceeds_max():
 
 def test_render_table_section_centres_compact_table_horizontally():
     doc = OutlineDoc(
-        title="T", language="en",
+        title="T",
+        language="en",
         sections=[
             Section(
                 heading="Tiny",
@@ -437,4 +440,3 @@ def test_render_with_corrupt_master_falls_back_silently(tmp_path):
     data = render_outline(_doc(1), _template(), master_path=bad)
     prs = pptx.Presentation(io.BytesIO(data))
     assert len(prs.slides) == _expected_slide_count(1)
-

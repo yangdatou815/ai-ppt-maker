@@ -3,6 +3,7 @@
 The view is intentionally read-only; the YAML file is the single source of
 truth. Hand-edit the file when scope changes, then redeploy.
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,7 +40,10 @@ def _compute_stats(phases: list[RoadmapPhase]) -> RoadmapStats:
                     planned += 1
     pct = (done / total * 100.0) if total else 0.0
     return RoadmapStats(
-        total=total, done=done, in_progress=in_progress, planned=planned,
+        total=total,
+        done=done,
+        in_progress=in_progress,
+        planned=planned,
         done_pct=round(pct, 1),
     )
 

@@ -4,6 +4,7 @@ Synchronous in v0.3.0: render is fast (no LLM call, just python-pptx tree
 serialisation) so we don't need the jobs queue yet. M3 will move to async +
 ``GET /api/jobs/{id}`` for thumbnail rendering via LibreOffice.
 """
+
 from __future__ import annotations
 
 import logging
@@ -66,8 +67,10 @@ def generate_pptx(req: GenerateRequest) -> Response:
         if not master_path.is_file():
             master_path = None
         data = render_outline(
-            req.outline, template,
-            uploads_dir=uploads_dir, master_path=master_path,
+            req.outline,
+            template,
+            uploads_dir=uploads_dir,
+            master_path=master_path,
         )
     except Exception as exc:  # noqa: BLE001 — surface as 500 with detail
         log.exception("render failed")
@@ -77,13 +80,14 @@ def generate_pptx(req: GenerateRequest) -> Response:
     fname = _safe_filename(req.outline.title) + ".pptx"
     log.info(
         "generate done: template=%s sections=%d size_kb=%d elapsed_ms=%d",
-        template.name, len(req.outline.sections), len(data) // 1024, elapsed_ms,
+        template.name,
+        len(req.outline.sections),
+        len(data) // 1024,
+        elapsed_ms,
     )
     return Response(
         content=data,
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.presentationml.presentation"),
         headers={
             "Content-Disposition": _content_disposition(fname),
             "X-Render-Elapsed-Ms": str(elapsed_ms),

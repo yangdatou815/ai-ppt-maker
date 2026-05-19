@@ -19,6 +19,7 @@ Design notes:
   ``qwen2.5:7b-instruct-q4_K_M`` is pulled — same model family, just
   smaller. Matches the deploy.sh skip-if-present logic.
 """
+
 from __future__ import annotations
 
 import logging

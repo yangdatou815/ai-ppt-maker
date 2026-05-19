@@ -5,6 +5,7 @@ Design (see docs/architecture.md TD-2):
 - user content always wrapped in <user_content>...</user_content>
 - prompt is language-agnostic (D-1: auto-detect zh/en)
 """
+
 from __future__ import annotations
 
 SYSTEM_PROMPT = """You are a slide-deck outliner. You convert a single block of source material into a structured slide outline.

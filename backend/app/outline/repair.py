@@ -3,6 +3,7 @@
 LLMs often wrap JSON in ```json fences, prepend "Sure, here is...", or leave
 trailing commas. This module attempts progressively looser parsing strategies.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -82,7 +83,10 @@ def repair(raw: str) -> dict:
             if isinstance(obj, dict):
                 log.debug(
                     "repair ok: strategy=%d input_chars=%d candidate_chars=%d keys=%s",
-                    idx, len(raw), len(c), sorted(obj.keys())[:8],
+                    idx,
+                    len(raw),
+                    len(c),
+                    sorted(obj.keys())[:8],
                 )
                 return obj
             last_err = ValueError(f"top-level not an object: {type(obj).__name__}")

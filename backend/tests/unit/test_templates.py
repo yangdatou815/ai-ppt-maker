@@ -65,9 +65,7 @@ def test_template_thumbnail_rejects_path_traversal(client):
     # served back.
     r = client.get("/api/templates/..%2Fapp/thumbnail.png")
     if r.status_code == 200:
-        assert r.headers.get("content-type") != "image/png", (
-            "path traversal must not return a PNG"
-        )
+        assert r.headers.get("content-type") != "image/png", "path traversal must not return a PNG"
 
 
 def test_outline_falls_back_when_llm_down(client, monkeypatch):

@@ -1,4 +1,5 @@
 """Tests for the Ollama daemon probe used by /api/healthz."""
+
 from __future__ import annotations
 
 import httpx

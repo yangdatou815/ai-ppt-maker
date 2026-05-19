@@ -3,6 +3,7 @@
 Calls POST /api/chat with format="json", strict timeout, and a single retry.
 The orchestrator (api/outline.py) handles repair + fallback.
 """
+
 from __future__ import annotations
 
 import logging
@@ -67,7 +68,11 @@ class OllamaClient:
 
         log.debug(
             "ollama call: url=%s model=%s timeout=%ss system_chars=%d user_chars=%d",
-            url, self.model, self.timeout_s, len(system), len(user),
+            url,
+            self.model,
+            self.timeout_s,
+            len(system),
+            len(user),
         )
 
         last_err: Exception | None = None
@@ -85,7 +90,9 @@ class OllamaClient:
                 eval_duration_ns = data.get("eval_duration")
                 log.debug(
                     "ollama ok: attempt=%d model=%s eval_count=%s eval_duration_ms=%s content_chars=%d",
-                    attempt, data.get("model", self.model), eval_count,
+                    attempt,
+                    data.get("model", self.model),
+                    eval_count,
                     None if eval_duration_ns is None else eval_duration_ns // 1_000_000,
                     len(msg),
                 )

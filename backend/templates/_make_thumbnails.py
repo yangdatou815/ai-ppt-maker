@@ -21,6 +21,7 @@ Run from the repository root::
 
 Idempotent: re-running overwrites ``thumbnail.png`` in each template dir.
 """
+
 from __future__ import annotations
 
 import re
@@ -29,7 +30,6 @@ from pathlib import Path
 
 import yaml
 from PIL import Image, ImageDraw, ImageFont
-
 
 HERE = Path(__file__).resolve().parent
 WIDTH, HEIGHT = 640, 360
@@ -84,8 +84,7 @@ def _font(size: int, *, bold: bool = False) -> ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
-def _vertical_gradient(top: tuple[int, int, int],
-                       bottom: tuple[int, int, int]) -> Image.Image:
+def _vertical_gradient(top: tuple[int, int, int], bottom: tuple[int, int, int]) -> Image.Image:
     img = Image.new("RGB", (WIDTH, HEIGHT), top)
     draw = ImageDraw.Draw(img)
     for y in range(HEIGHT):
@@ -98,12 +97,12 @@ def _vertical_gradient(top: tuple[int, int, int],
 
 
 def _draw_thumbnail(name: str, theme: dict) -> Image.Image:
-    primary   = _rgb(theme.get("primary"),    "1F6FEB")
-    primary2  = _rgb(theme.get("primary-2"),  "0D1117")
-    accent    = _rgb(theme.get("accent"),     "39D0D8")
-    text_col  = _rgb(theme.get("text"),       "FFFFFF")
-    neutral   = _rgb(theme.get("neutral"),    "F4F1EA")
-    text_mute = _rgb(theme.get("text-mute"),  "A3A6AD")
+    primary = _rgb(theme.get("primary"), "1F6FEB")
+    primary2 = _rgb(theme.get("primary-2"), "0D1117")
+    accent = _rgb(theme.get("accent"), "39D0D8")
+    text_col = _rgb(theme.get("text"), "FFFFFF")
+    neutral = _rgb(theme.get("neutral"), "F4F1EA")
+    text_mute = _rgb(theme.get("text-mute"), "A3A6AD")
 
     img = _vertical_gradient(primary, primary2)
     draw = ImageDraw.Draw(img)
@@ -113,9 +112,10 @@ def _draw_thumbnail(name: str, theme: dict) -> Image.Image:
 
     # Heading + sub.
     display_name, description = _DISPLAY.get(
-        name, (name.replace("-", " ").title(), "Custom template"),
+        name,
+        (name.replace("-", " ").title(), "Custom template"),
     )
-    draw.text((40, 64),  display_name, fill=text_col, font=_font(38, bold=True))
+    draw.text((40, 64), display_name, fill=text_col, font=_font(38, bold=True))
     draw.text((40, 124), description, fill=text_mute, font=_font(16))
 
     # Swatch row.
@@ -125,8 +125,12 @@ def _draw_thumbnail(name: str, theme: dict) -> Image.Image:
     swatches = [primary, accent, neutral]
     for i, col in enumerate(swatches):
         x = 40 + i * (swatch_size + gap)
-        draw.rectangle([(x, swatch_y), (x + swatch_size, swatch_y + swatch_size)],
-                       fill=col, outline=text_mute, width=1)
+        draw.rectangle(
+            [(x, swatch_y), (x + swatch_size, swatch_y + swatch_size)],
+            fill=col,
+            outline=text_mute,
+            width=1,
+        )
 
     # Footer: 16:9 · <name>
     footer = f"16:9 · {name}"

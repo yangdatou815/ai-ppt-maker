@@ -1,4 +1,5 @@
 """Schemas for /api/classify-template — pick the best template for source text."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field

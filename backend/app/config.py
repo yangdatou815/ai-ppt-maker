@@ -1,4 +1,5 @@
 """Application settings loaded from env."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -27,9 +28,7 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = Field(default=50, alias="MAX_UPLOAD_MB")
 
-    templates_dir: Path = Field(
-        default=Path(__file__).resolve().parent.parent / "templates"
-    )
+    templates_dir: Path = Field(default=Path(__file__).resolve().parent.parent / "templates")
 
 
 _settings: Settings | None = None

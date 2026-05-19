@@ -5,6 +5,7 @@ as data not instructions, language-agnostic. The template catalogue is
 embedded in the system prompt so the LLM can only return one of three
 allowed slugs — the API endpoint validates again on the way out.
 """
+
 from __future__ import annotations
 
 CLASSIFY_SYSTEM_PROMPT = """You are a presentation style advisor. Pick the single best slide template for the source material below.

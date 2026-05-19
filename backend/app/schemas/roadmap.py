@@ -1,4 +1,5 @@
 """Roadmap schemas — feeds the in-app project bird's-eye view."""
+
 from __future__ import annotations
 
 from typing import Literal

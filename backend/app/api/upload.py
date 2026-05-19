@@ -4,6 +4,7 @@ The renderer reads files by ``file_id`` from ``<workspace_dir>/uploads/``.
 We accept only the image MIME types python-pptx can embed without conversion.
 Size is capped by :data:`Settings.max_upload_mb` (defaults to 50 MB).
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,10 +43,7 @@ async def upload_image(file: UploadFile) -> dict:
     if ctype not in _ALLOWED_MIME_EXT:
         raise HTTPException(
             status_code=415,
-            detail=(
-                f"unsupported content-type '{ctype}'. "
-                f"Allowed: {sorted(_ALLOWED_MIME_EXT)}"
-            ),
+            detail=(f"unsupported content-type '{ctype}'. Allowed: {sorted(_ALLOWED_MIME_EXT)}"),
         )
 
     # Stream-read with a hard cap so a malicious / fat upload can't OOM us.

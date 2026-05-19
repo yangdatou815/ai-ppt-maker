@@ -6,6 +6,7 @@ When frozen (running from PyInstaller bundle), adjusts paths so that:
 
 Then starts uvicorn on port 8080.
 """
+
 from __future__ import annotations
 
 import os
@@ -42,13 +43,14 @@ def main():
     _setup_bundle_paths()
 
     import uvicorn
+
     from app.main import app  # noqa: F401 — imported for uvicorn
 
     port = int(os.environ.get("APP_PORT", "8080"))
     host = os.environ.get("APP_HOST", "127.0.0.1")
 
     print(f"\n  ai-ppt-maker starting on http://{host}:{port}")
-    print(f"  Press Ctrl+C to stop\n")
+    print("  Press Ctrl+C to stop\n")
 
     uvicorn.run(
         "app.main:app",

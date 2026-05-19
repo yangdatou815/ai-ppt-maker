@@ -1,4 +1,5 @@
 """Integration tests for /api/roadmap."""
+
 from __future__ import annotations
 
 from pathlib import Path
