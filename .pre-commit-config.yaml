@@ -1,0 +1,54 @@
+# Pre-commit hooks — run before each commit to catch issues early.
+# Install: pip install pre-commit && pre-commit install
+# Skip: git commit --no-verify (emergencies only)
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  - repo: local
+    hooks:
+      - id: bat-sync-check
+        name: Check .bat scripts in sync with templates
+        entry: python scripts/build_scripts.py --check
+        language: python
+        pass_filenames: false
+        files: (scripts/.*\.(bat|tmpl)|scripts/build_scripts\.py)$
+
+      - id: pyinstaller-spec-paths
+        name: Validate PyInstaller spec referenced paths
+        entry: python scripts/check_spec_paths.py
+        language: python
+        pass_filenames: false
+        files: (scripts/ai-ppt-maker\.spec|backend/launcher\.py)$
+
+      - id: frontend-tests
+        name: Run frontend tests
+        entry: bash -c 'cd frontend && npx vitest run --reporter=dot'
+        language: system
+        pass_filenames: false
+        files: ^frontend/
+
+      - id: code-review
+        name: AI-style code review checks
+        entry: python scripts/pre_commit_review.py
+        language: python
+        pass_filenames: true
+        types: [python]
+        files: ^backend/
