@@ -121,6 +121,12 @@ chmod +x "$INSTALL_DIR/start.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/install-ollama.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/ai-ppt-maker/ai-ppt-maker" 2>/dev/null || true
 
+# macOS: remove quarantine attribute to avoid Gatekeeper blocking
+if [ "$(uname -s)" = "Darwin" ]; then
+    xattr -dr com.apple.quarantine "$INSTALL_DIR" 2>/dev/null || true
+    info "已移除 macOS 隔离标记"
+fi
+
 info "安装完成"
 
 # --- Ollama check ---
