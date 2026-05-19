@@ -18,7 +18,7 @@ from pathlib import Path
 
 block_cipher = None
 
-REPO_ROOT = Path(SPECPATH).parent.parent
+REPO_ROOT = Path(SPECPATH).parent
 BACKEND = REPO_ROOT / "backend"
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 TEMPLATES = BACKEND / "templates"
