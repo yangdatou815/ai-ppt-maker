@@ -1,0 +1,171 @@
+name: Build Release Packages
+# 当 tag 推送时（从 Gitee 镜像过来）自动构建三平台包
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin-arm64
+          - os: macos-13
+            platform: darwin-x86_64
+          - os: ubuntu-latest
+            platform: linux-x86_64
+          - os: windows-latest
+            platform: windows-x86_64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller
+          pip install -e backend/.[dev]
+        shell: bash
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm install --legacy-peer-deps
+          npm run build
+        shell: bash
+
+      - name: Run PyInstaller
+        run: |
+          pyinstaller scripts/ai-ppt-maker.spec --noconfirm --clean
+        shell: bash
+
+      - name: Package release (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          RELEASE_DIR="ai-ppt-maker-${VERSION}-${{ matrix.platform }}"
+          mkdir -p "$RELEASE_DIR"
+          cp -r dist/ai-ppt-maker "$RELEASE_DIR/ai-ppt-maker"
+
+          # Add launcher scripts
+          cat > "$RELEASE_DIR/start.sh" << 'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          if ! curl -sS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+            echo "[!] Ollama 未运行，请先启动: ollama serve"
+            exit 1
+          fi
+          MODEL="${APM_LLM_MODEL:-qwen2.5:7b-instruct}"
+          if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
+            echo "[i] 拉取模型 $MODEL..."
+            ollama pull "$MODEL"
+          fi
+          exec "$DIR/ai-ppt-maker/ai-ppt-maker"
+          EOF
+          chmod +x "$RELEASE_DIR/start.sh"
+
+          # Ollama installer
+          cat > "$RELEASE_DIR/install-ollama.sh" << 'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if command -v ollama >/dev/null 2>&1; then
+            echo "Ollama 已安装"; ollama --version
+          else
+            curl -fsSL https://ollama.com/install.sh | sh
+          fi
+          MODEL="${APM_LLM_MODEL:-qwen2.5:7b-instruct}"
+          if ! curl -sS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+            nohup ollama serve >/dev/null 2>&1 &
+            sleep 3
+          fi
+          ollama pull "$MODEL"
+          echo "安装完成！运行 ./start.sh 启动"
+          EOF
+          chmod +x "$RELEASE_DIR/install-ollama.sh"
+
+          tar czf "${RELEASE_DIR}.tar.gz" "$RELEASE_DIR"
+          echo "ASSET_PATH=${RELEASE_DIR}.tar.gz" >> "$GITHUB_ENV"
+        shell: bash
+
+      - name: Package release (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $VERSION = "${{ github.ref_name }}"
+          $RELEASE_DIR = "ai-ppt-maker-${VERSION}-${{ matrix.platform }}"
+          New-Item -ItemType Directory -Path $RELEASE_DIR -Force
+          Copy-Item -Recurse "dist/ai-ppt-maker" "$RELEASE_DIR/ai-ppt-maker"
+
+          # Create start.bat
+          @"
+          @echo off
+          chcp 65001 > nul
+          curl -sS http://127.0.0.1:11434/api/tags >nul 2>nul
+          if errorlevel 1 (
+            echo [!] Ollama 未运行。请先启动 Ollama 或访问 https://ollama.com/download
+            pause
+            exit /b 1
+          )
+          echo 启动 ai-ppt-maker...
+          "%~dp0ai-ppt-maker\ai-ppt-maker.exe"
+          "@ | Out-File -Encoding utf8 "$RELEASE_DIR/start.bat"
+
+          Compress-Archive -Path $RELEASE_DIR -DestinationPath "${RELEASE_DIR}.zip"
+          echo "ASSET_PATH=${RELEASE_DIR}.zip" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET_PATH }}
+          generate_release_notes: true
+
+      - name: Upload to Gitee Release
+        if: runner.os == 'Linux'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "${GITEE_TOKEN:-}" ]; then
+            echo "GITEE_TOKEN not set, skipping Gitee upload"
+            exit 0
+          fi
+
+          VERSION="${GITHUB_REF_NAME}"
+          OWNER="yangdatou815"
+          REPO="ai-ppt-maker"
+          API="https://gitee.com/api/v5"
+
+          # Create release if not exists
+          RELEASE_ID=$(curl -sS "${API}/repos/${OWNER}/${REPO}/releases/tags/${VERSION}?access_token=${GITEE_TOKEN}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+          if [ -z "$RELEASE_ID" ]; then
+            RELEASE_ID=$(curl -sS -X POST "${API}/repos/${OWNER}/${REPO}/releases" \
+              -H "Content-Type: application/json" \
+              -d "{\"access_token\":\"${GITEE_TOKEN}\",\"tag_name\":\"${VERSION}\",\"name\":\"${VERSION}\",\"body\":\"Auto-built by GitHub Actions\",\"target_commitish\":\"main\"}" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+          fi
+
+          # Upload all platform assets from this run
+          for f in ai-ppt-maker-${VERSION}-*.tar.gz ai-ppt-maker-${VERSION}-*.zip; do
+            [ -f "$f" ] || continue
+            echo "Uploading $f to Gitee..."
+            curl -sS -X POST "${API}/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/attach_files" \
+              -F "access_token=${GITEE_TOKEN}" \
+              -F "file=@${f}" || echo "Upload failed for $f"
+          done
+        shell: bash
