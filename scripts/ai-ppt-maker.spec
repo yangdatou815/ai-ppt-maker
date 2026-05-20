@@ -34,6 +34,11 @@ if FRONTEND_DIST.is_dir():
 if TEMPLATES.is_dir():
     datas.append((str(TEMPLATES), "backend/templates"))
 
+# Roadmap data file
+roadmap_yaml = BACKEND / "roadmap.yaml"
+if roadmap_yaml.is_file():
+    datas.append((str(roadmap_yaml), "backend"))
+
 # Hidden imports for FastAPI + dynamic modules
 hiddenimports = [
     "app",

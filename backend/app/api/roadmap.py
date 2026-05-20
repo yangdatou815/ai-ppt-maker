@@ -7,6 +7,7 @@ truth. Hand-edit the file when scope changes, then redeploy.
 from __future__ import annotations
 
 import logging
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -23,7 +24,12 @@ router = APIRouter()
 log = logging.getLogger(__name__)
 
 # Resolved at import: <repo_root>/backend/roadmap.yaml
-_DEFAULT_PATH = Path(__file__).resolve().parent.parent.parent / "roadmap.yaml"
+# In frozen (PyInstaller) mode, use the bundle directory instead of __file__
+if getattr(sys, "frozen", False):
+    _bundle_dir = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(sys.executable).parent
+    _DEFAULT_PATH = _bundle_dir / "backend" / "roadmap.yaml"
+else:
+    _DEFAULT_PATH = Path(__file__).resolve().parent.parent.parent / "roadmap.yaml"
 
 
 def _compute_stats(phases: list[RoadmapPhase]) -> RoadmapStats:
