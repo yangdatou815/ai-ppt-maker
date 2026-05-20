@@ -129,14 +129,23 @@ jobs:
           @"
           @echo off
           chcp 65001 > nul
-          curl -sS http://127.0.0.1:11434/api/tags >nul 2>nul
+          setlocal
+          set "BIN=%~dp0ai-ppt-maker\ai-ppt-maker.exe"
+          set "PORT=8080"
+          echo === ai-ppt-maker ===
+          echo   binary: %BIN%
+          if not exist "%BIN%" ( echo [!] 找不到 %BIN% & pause & exit /b 1 )
+          netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul 2>nul
+          if not errorlevel 1 ( echo [!] 端口 %PORT% 已被占用 )
+          curl -sS --max-time 3 http://127.0.0.1:11434/api/tags >nul 2>nul
           if errorlevel 1 (
             echo [!] Ollama 未运行。请先启动 Ollama 或访问 https://ollama.com/download
             pause
             exit /b 1
           )
-          echo 启动 ai-ppt-maker...
-          "%~dp0ai-ppt-maker\ai-ppt-maker.exe"
+          echo [*] 启动 http://127.0.0.1:%PORT%
+          start "" "http://127.0.0.1:%PORT%"
+          "%BIN%"
           "@ | Out-File -Encoding utf8 "$RELEASE_DIR/start.bat"
 
           Compress-Archive -Path $RELEASE_DIR -DestinationPath "${RELEASE_DIR}.zip"

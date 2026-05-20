@@ -137,9 +137,31 @@ cat > "$RELEASE_DIR/start.bat" << 'BATEOF'
 chcp 65001 > nul
 setlocal
 set "SCRIPT_DIR=%~dp0"
+set "BIN=%SCRIPT_DIR%ai-ppt-maker\ai-ppt-maker.exe"
+set "PORT=8080"
 
-echo Checking Ollama...
-curl -sS http://127.0.0.1:11434/api/tags >nul 2>nul
+echo === ai-ppt-maker 启动诊断 ===
+echo   binary : %BIN%
+echo   port   : %PORT%
+echo.
+
+if not exist "%BIN%" (
+    echo [!] 找不到可执行文件: %BIN%
+    echo     请确认解压正确。
+    pause
+    exit /b 1
+)
+
+REM Check if port is occupied
+netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul 2>nul
+if not errorlevel 1 (
+    echo [!] 端口 %PORT% 已被占用，可能是上次未正常关闭。
+    echo     请关闭占用程序或设置 APM_PORT 环境变量使用其他端口。
+    echo.
+)
+
+echo [*] 检查 Ollama...
+curl -sS --max-time 3 http://127.0.0.1:11434/api/tags >nul 2>nul
 if errorlevel 1 (
     echo [!] Ollama 未运行。请先启动 Ollama：
     echo     ollama serve
@@ -148,9 +170,14 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+echo [√] Ollama OK
 
-echo 启动 ai-ppt-maker...
-"%SCRIPT_DIR%ai-ppt-maker\ai-ppt-maker.exe"
+echo.
+echo [*] 启动 ai-ppt-maker on http://127.0.0.1:%PORT% ...
+echo     按 Ctrl+C 停止
+echo.
+start "" "http://127.0.0.1:%PORT%"
+"%BIN%"
 endlocal
 BATEOF
 
