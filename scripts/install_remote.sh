@@ -106,6 +106,14 @@ info "下载地址: $DOWNLOAD_URL"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
+# --- Check existing installation ---
+if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/ai-ppt-maker/ai-ppt-maker" ]; then
+    warn "检测到已有安装: $INSTALL_DIR"
+    BACKUP_DIR="${INSTALL_DIR}.bak-$(date +%Y%m%d-%H%M%S)"
+    warn "备份旧版本到: $BACKUP_DIR"
+    mv "$INSTALL_DIR" "$BACKUP_DIR"
+fi
+
 echo ""
 info "下载中..."
 curl -fSL --progress-bar -o "$TMPDIR/$ASSET_NAME" "$DOWNLOAD_URL"

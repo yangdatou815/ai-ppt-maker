@@ -136,7 +136,10 @@ jobs:
           echo   binary: %BIN%
           if not exist "%BIN%" ( echo [!] 找不到 %BIN% & pause & exit /b 1 )
           netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul 2>nul
-          if not errorlevel 1 ( echo [!] 端口 %PORT% 已被占用 )
+          if not errorlevel 1 (
+            for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%PORT% " ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>nul
+            timeout /t 1 >nul
+          )
           curl -sS --max-time 3 http://127.0.0.1:11434/api/tags >nul 2>nul
           if errorlevel 1 (
             echo [!] Ollama 未运行。请先启动 Ollama 或访问 https://ollama.com/download

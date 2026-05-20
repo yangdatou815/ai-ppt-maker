@@ -152,12 +152,11 @@ if not exist "%BIN%" (
     exit /b 1
 )
 
-REM Check if port is occupied
-netstat -ano | findstr ":%PORT% " | findstr "LISTENING" >nul 2>nul
-if not errorlevel 1 (
-    echo [!] 端口 %PORT% 已被占用，可能是上次未正常关闭。
-    echo     请关闭占用程序或设置 APM_PORT 环境变量使用其他端口。
-    echo.
+REM Check if port is occupied and kill stale process
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%PORT% " ^| findstr "LISTENING"') do (
+    echo [!] 端口 %PORT% 被进程 %%a 占用，正在清理...
+    taskkill /F /PID %%a >nul 2>nul
+    timeout /t 1 >nul
 )
 
 echo [*] 检查 Ollama...
