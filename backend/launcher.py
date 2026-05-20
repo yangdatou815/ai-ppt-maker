@@ -49,8 +49,28 @@ def main():
     port = int(os.environ.get("APP_PORT", "8080"))
     host = os.environ.get("APP_HOST", "127.0.0.1")
 
-    print(f"\n  ai-ppt-maker starting on http://{host}:{port}")
+    print(f"\n  ai-ppt-maker v{_get_version()} starting...")
+    print(f"  Host: {host}:{port}")
+    print(f"  Frozen: {getattr(sys, 'frozen', False)}")
+    if getattr(sys, "frozen", False):
+        bundle_dir = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(sys.executable).parent
+        print(f"  Bundle dir: {bundle_dir}")
+        dist_dir = bundle_dir / "frontend" / "dist"
+        print(f"  Frontend dist: {dist_dir} (exists={dist_dir.is_dir()})")
+    print(f"\n  Open in browser: http://127.0.0.1:{port}")
     print("  Press Ctrl+C to stop\n")
+
+    # Auto-open browser after a short delay
+    import threading
+    import webbrowser
+
+    def _open_browser():
+        import time
+
+        time.sleep(1.5)
+        webbrowser.open(f"http://127.0.0.1:{port}")
+
+    threading.Thread(target=_open_browser, daemon=True).start()
 
     uvicorn.run(
         "app.main:app",
@@ -58,6 +78,15 @@ def main():
         port=port,
         log_level="info",
     )
+
+
+def _get_version() -> str:
+    try:
+        from app import __version__
+
+        return __version__
+    except Exception:
+        return "unknown"
 
 
 if __name__ == "__main__":

@@ -65,9 +65,46 @@ cat > "$RELEASE_DIR/start.sh" << 'STARTEOF'
 # 启动 ai-ppt-maker
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="$SCRIPT_DIR/ai-ppt-maker/ai-ppt-maker"
+PORT="${APM_PORT:-8080}"
+HOST="${APM_HOST:-127.0.0.1}"
+
+# Bypass proxy for local connections
+export no_proxy="${no_proxy:+$no_proxy,}127.0.0.1,localhost"
+export NO_PROXY="${NO_PROXY:+$NO_PROXY,}127.0.0.1,localhost"
+
+echo "=== ai-ppt-maker 启动诊断 ==="
+echo "  binary : $BIN"
+echo "  host   : $HOST:$PORT"
+echo "  date   : $(date)"
+echo ""
+
+# macOS: remove quarantine if present
+if [[ "$(uname)" == "Darwin" ]]; then
+    if xattr -l "$BIN" 2>/dev/null | grep -q "com.apple.quarantine"; then
+        echo "[i] 移除 macOS 隔离标记..."
+        xattr -dr com.apple.quarantine "$SCRIPT_DIR/ai-ppt-maker/" 2>/dev/null || true
+    fi
+fi
+
+# Check binary exists and is executable
+if [ ! -x "$BIN" ]; then
+    echo "[!] 找不到可执行文件: $BIN"
+    echo "    请确认解压正确，或运行: chmod +x $BIN"
+    exit 1
+fi
+
+# Kill stale process on same port (if any)
+if lsof -i :"$PORT" -t >/dev/null 2>&1; then
+    STALE_PID=$(lsof -i :"$PORT" -t 2>/dev/null | head -1)
+    echo "[!] 端口 $PORT 被进程 $STALE_PID 占用，正在清理..."
+    kill "$STALE_PID" 2>/dev/null || true
+    sleep 1
+fi
 
 # Check Ollama
-if ! curl -sS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+echo "[*] 检查 Ollama..."
+if ! curl -sS --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     echo "[!] Ollama 未运行。请先启动 Ollama："
     echo "    ollama serve"
     echo ""
@@ -75,6 +112,7 @@ if ! curl -sS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     echo "    bash install-ollama.sh"
     exit 1
 fi
+echo "[✓] Ollama OK"
 
 # Check model
 MODEL="${APM_LLM_MODEL:-qwen2.5:7b-instruct}"
@@ -82,9 +120,14 @@ if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
     echo "[i] 模型 $MODEL 未下载，正在拉取（约5GB，首次需10-30分钟）..."
     ollama pull "$MODEL"
 fi
+echo "[✓] 模型 $MODEL 就绪"
 
-echo "启动 ai-ppt-maker..."
-"$SCRIPT_DIR/ai-ppt-maker/ai-ppt-maker"
+# Start
+echo ""
+echo "[*] 启动 ai-ppt-maker on http://$HOST:$PORT ..."
+echo "    按 Ctrl+C 停止"
+echo ""
+exec "$BIN"
 STARTEOF
 chmod +x "$RELEASE_DIR/start.sh"
 

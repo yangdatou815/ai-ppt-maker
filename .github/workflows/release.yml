@@ -66,16 +66,31 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
           DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-          if ! curl -sS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-            echo "[!] Ollama 未运行，请先启动: ollama serve"
-            exit 1
+          BIN="$DIR/ai-ppt-maker/ai-ppt-maker"
+          PORT="${APM_PORT:-8080}"
+          export no_proxy="${no_proxy:+$no_proxy,}127.0.0.1,localhost"
+          export NO_PROXY="${NO_PROXY:+$NO_PROXY,}127.0.0.1,localhost"
+          echo "=== ai-ppt-maker 启动诊断 ==="
+          echo "  binary: $BIN"
+          echo "  port  : $PORT"
+          # macOS quarantine removal
+          if [[ "$(uname)" == "Darwin" ]]; then
+            xattr -dr com.apple.quarantine "$DIR/ai-ppt-maker/" 2>/dev/null || true
+          fi
+          if [ ! -x "$BIN" ]; then echo "[!] 二进制不可执行: $BIN"; exit 1; fi
+          # Kill stale process
+          if lsof -i :"$PORT" -t >/dev/null 2>&1; then
+            kill "$(lsof -i :"$PORT" -t | head -1)" 2>/dev/null || true; sleep 1
+          fi
+          if ! curl -sS --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+            echo "[!] Ollama 未运行，请先启动: ollama serve"; exit 1
           fi
           MODEL="${APM_LLM_MODEL:-qwen2.5:7b-instruct}"
           if ! ollama list 2>/dev/null | grep -q "$MODEL"; then
-            echo "[i] 拉取模型 $MODEL..."
-            ollama pull "$MODEL"
+            echo "[i] 拉取模型 $MODEL..."; ollama pull "$MODEL"
           fi
-          exec "$DIR/ai-ppt-maker/ai-ppt-maker"
+          echo "[*] 启动 http://127.0.0.1:$PORT"
+          exec "$BIN"
           EOF
           chmod +x "$RELEASE_DIR/start.sh"
 
